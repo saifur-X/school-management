@@ -432,4 +432,53 @@ export default function Dashboard() {
               >
                 <Edit size={16} /> {editSchool ? 'বাতিল' : 'এডিট করুন'}
               </button>
-          
+                      </div>
+
+            <div className="bg-slate-900/60 border border-slate-800/80 p-6 rounded-2xl space-y-4 max-w-xl shadow-xl">
+              {editSchool ? (
+                <form onSubmit={handleUpdateSchool} className="space-y-4">
+                  <div>
+                    <label className="text-xs text-slate-400 block mb-1">স্কুলের নাম</label>
+                    <input
+                      type="text"
+                      value={school.school_name}
+                      onChange={(e) => setSchool({ ...school, school_name: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-400 block mb-1">ঠিকানা</label>
+                    <input
+                      type="text"
+                      value={school.address}
+                      onChange={(e) => setSchool({ ...school, address: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-400 block mb-1">ফোন নম্বর</label>
+                    <input
+                      type="text"
+                      value={school.phone}
+                      onChange={(e) => setSchool({ ...school, phone: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <button type="submit" className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 px-6 py-3 rounded-xl text-sm font-bold shadow-lg shadow-emerald-600/20">
+                    <Save size={16} /> সেভ করুন
+                  </button>
+                </form>
+              ) : (
+                <div className="space-y-3">
+                  <div><p className="text-xs text-slate-400">স্কুলের নাম</p><p className="font-bold text-lg">{school.school_name}</p></div>
+                  <div><p className="text-xs text-slate-400">ঠিকানা</p><p className="font-medium">{school.address}</p></div>
+                  <div><p className="text-xs text-slate-400">ফোন</p><p className="font-medium">{school.phone}</p></div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+                  }
