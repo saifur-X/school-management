@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useRouter } from 'next/navigation';
-import { LayoutDashboard, Users, CreditCard, FileSpreadsheet, UserCheck, Key, LogOut, Edit, Save, Plus, School, Image, Phone, MapPin, Droplet, User, BookOpen, Trash2, Printer, X } from 'lucide-react';
+import { LayoutDashboard, Users, CreditCard, FileSpreadsheet, UserCheck, Key, LogOut, Edit, Save, Plus, School, Image, Phone, MapPin, Droplet, User, BookOpen, Trash2, Printer, X, CheckCircle } from 'lucide-react';
 
 export default function Dashboard() {
   const [session, setSession] = useState(null);
@@ -11,17 +11,9 @@ export default function Dashboard() {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // New Student / Edit Student Form States
+  // Student Form
   const [formData, setFormData] = useState({
-    id: null,
-    name: '',
-    rollNo: '',
-    studentClass: '',
-    phone: '',
-    bloodGroup: '',
-    address: '',
-    gender: 'Male',
-    photoUrl: ''
+    id: null, name: '', rollNo: '', studentClass: '', phone: '', bloodGroup: '', address: '', gender: 'Male', photoUrl: ''
   });
   const [isEditingStudent, setIsEditingStudent] = useState(false);
 
@@ -32,10 +24,10 @@ export default function Dashboard() {
   // ID Card Selection
   const [selectedStudent, setSelectedStudent] = useState(null);
 
-  // Marksheet States
-  const [marksheetStudent, setMarksheetStudent] = useState(null);
-  const [marks, setMarks] = useState({ examName: 'Annual Exam 2026', bangla: 80, english: 75, math: 90, science: 85 });
-  const [generatedMarksheet, setGeneratedMarksheet] = useState(null);
+  // Marksheet Entry & Generation States
+  const [examName, setExamName] = useState('Annual Examination 2026');
+  const [studentMarks, setStudentMarks] = useState({});
+  const [selectedMarksheetStudent, setSelectedMarksheetStudent] = useState(null);
 
   const router = useRouter();
 
@@ -79,7 +71,6 @@ export default function Dashboard() {
     }
 
     if (isEditingStudent) {
-      // Update existing student
       const { error } = await supabase.from('students').update({
         name: formData.name,
         roll_no: parseInt(formData.rollNo),
@@ -98,7 +89,6 @@ export default function Dashboard() {
         fetchStudents();
       }
     } else {
-      // Add new student
       const { error } = await supabase.from('students').insert([
         { 
           name: formData.name, 
@@ -135,7 +125,7 @@ export default function Dashboard() {
       photoUrl: student.photo_url || ''
     });
     setIsEditingStudent(true);
-    setActiveTab('dashboard'); // Edit form e niye jabe
+    setActiveTab('dashboard');
   };
 
   const handleDeleteStudent = async (id) => {
@@ -164,32 +154,24 @@ export default function Dashboard() {
     }
   };
 
-  const handleGenerateMarksheet = (e) => {
-    e.preventDefault();
-    if (!marksheetStudent) return alert('অনুগ্রহ করে একজন স্টুডেন্ট সিলেক্ট করুন!');
-    
-    const total = Number(marks.bangla) + Number(marks.english) + Number(marks.math) + Number(marks.science);
-    const avg = total / 4;
-    let grade = 'F';
-    if (avg >= 80) grade = 'A+';
-    else if (avg >= 70) grade = 'A';
-    else if (avg >= 60) grade = 'A-';
-    else if (avg >= 50) grade = 'B';
-    else if (avg >= 40) grade = 'C';
+  // Mark Entry Changes
+  const handleMarkChange = (studentId, field, value) => {
+    setStudentMarks(prev => ({
+      ...prev,
+      [studentId]: {
+        ...prev[studentId],
+        [field]: parseInt(value) || 0
+      }
+    }));
+  };
 
-    setGeneratedMarksheet({
-      student: marksheetStudent,
-      examName: marks.examName,
-      subjects: [
-        { name: 'বাংলা (Bangla)', mark: marks.bangla },
-        { name: 'ইংরেজি (English)', mark: marks.english },
-        { name: 'গণিত (Mathematics)', mark: marks.math },
-        { name: 'বিজ্ঞান (General Science)', mark: marks.science }
-      ],
-      total,
-      avg: avg.toFixed(1),
-      grade
-    });
+  const calculateGrade = (mark) => {
+    if (mark >= 80) return 'A+';
+    if (mark >= 70) return 'A';
+    if (mark >= 60) return 'A-';
+    if (mark >= 50) return 'B';
+    if (mark >= 40) return 'C';
+    return 'F';
   };
 
   const handleLogout = async () => {
@@ -201,8 +183,106 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-slate-950 text-slate-100 font-sans">
-      {/* Sidebar Navigation */}
-      <aside className="w-full md:w-72 bg-slate-900/80 backdrop-blur-xl border-r border-slate-800/80 p-6 flex flex-col justify-between">
+      {/* Printable Area - Marksheet Only */}
+      {selectedMarksheetStudent && (
+        <div className="fixed inset-0 bg-white text-slate-900 z-50 p-8 overflow-y-auto block print:p-0 print:static print:block">
+          <div className="max-w-xl mx-auto border-4 border-slate-900 p-8 rounded-xl shadow-2xl relative bg-white">
+            <button onClick={() => setSelectedMarksheetStudent(null)} className="absolute top-4 right-4 bg-slate-200 text-slate-800 p-2 rounded-full print:hidden">
+              <X size={18} />
+            </button>
+
+            {/* School Header */}
+            <div className="text-center border-b-2 border-slate-900 pb-4 mb-6">
+              <h1 className="text-3xl font-black uppercase text-slate-900 tracking-wide">{school.school_name}</h1>
+              <p className="text-sm font-medium text-slate-600">{school.address} | Contact: {school.phone}</p>
+              <div className="mt-3 inline-block bg-slate-900 text-white font-bold px-4 py-1.5 rounded-md text-xs uppercase tracking-wider">
+                PROGRESS REPORT - {examName}
+              </div>
+            </div>
+
+            {/* Student Info Box */}
+            <div className="grid grid-cols-2 gap-3 text-sm mb-6 bg-slate-100 p-4 rounded-lg border border-slate-300">
+              <p><strong>Student Name:</strong> {selectedMarksheetStudent.name}</p>
+              <p><strong>Roll No:</strong> #{selectedMarksheetStudent.roll_no}</p>
+              <p><strong>Class:</strong> {selectedMarksheetStudent.student_class}</p>
+              <p><strong>Gender:</strong> {selectedMarksheetStudent.gender || 'N/A'}</p>
+            </div>
+
+            {/* Subject Marks Table */}
+            <table className="w-full text-left text-sm border-collapse border border-slate-900 mb-6">
+              <thead>
+                <tr className="bg-slate-200 text-slate-900 border-b border-slate-900">
+                  <th className="p-2.5 border-r border-slate-900">Subject Name</th>
+                  <th className="p-2.5 border-r border-slate-900 text-center">Oral (20)</th>
+                  <th className="p-2.5 border-r border-slate-900 text-center">Theory (80)</th>
+                  <th className="p-2.5 border-r border-slate-900 text-center">Total (100)</th>
+                  <th className="p-2.5 text-center">Grade</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  { name: 'Bangla', key: 'bangla' },
+                  { name: 'English', key: 'english' },
+                  { name: 'Mathematics', key: 'math' },
+                  { name: 'General Science', key: 'science' },
+                ].map((sub, idx) => {
+                  const m = studentMarks[selectedMarksheetStudent.id] || {};
+                  const oral = m[`${sub.key}_oral`] || 0;
+                  const theory = m[`${sub.key}_theory`] || 0;
+                  const total = oral + theory;
+                  return (
+                    <tr key={idx} className="border-b border-slate-900">
+                      <td className="p-2.5 border-r border-slate-900 font-semibold">{sub.name}</td>
+                      <td className="p-2.5 border-r border-slate-900 text-center">{oral}</td>
+                      <td className="p-2.5 border-r border-slate-900 text-center">{theory}</td>
+                      <td className="p-2.5 border-r border-slate-900 text-center font-bold">{total}</td>
+                      <td className="p-2.5 text-center font-extrabold text-blue-700">{calculateGrade(total)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+
+            {/* Total Calculation */}
+            {(() => {
+              const m = studentMarks[selectedMarksheetStudent.id] || {};
+              const grandTotal = (m.bangla_oral || 0) + (m.bangla_theory || 0) +
+                                 (m.english_oral || 0) + (m.english_theory || 0) +
+                                 (m.math_oral || 0) + (m.math_theory || 0) +
+                                 (m.science_oral || 0) + (m.science_theory || 0);
+              const avg = grandTotal / 4;
+              return (
+                <div className="flex justify-between items-center bg-slate-100 p-4 rounded-lg border border-slate-300 mb-8">
+                  <div>
+                    <p className="text-sm font-bold text-slate-800">Grand Total: {grandTotal} / 400</p>
+                    <p className="text-xs text-slate-600">Percentage: {avg.toFixed(1)}%</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-slate-500">Overall Grade</p>
+                    <p className="text-2xl font-black text-blue-800">{calculateGrade(avg)}</p>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Footer Footer Note */}
+            <div className="text-center pt-6 border-t border-dashed border-slate-400">
+              <p className="text-xs font-semibold text-slate-500 tracking-wide uppercase">
+                This is a computer-generated document. No signature is required.
+              </p>
+            </div>
+
+            <div className="mt-6 text-center print:hidden">
+              <button onClick={() => window.print()} className="bg-slate-900 text-white px-6 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 mx-auto hover:bg-slate-800">
+                <Printer size={16} /> প্রিন্ট / সেভ PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Dashboard Interface */}
+      <aside className="w-full md:w-72 bg-slate-900/80 backdrop-blur-xl border-r border-slate-800/80 p-6 flex flex-col justify-between print:hidden">
         <div>
           <div className="flex items-center gap-3 mb-8">
             <div className="bg-gradient-to-tr from-blue-600 to-indigo-500 p-3 rounded-2xl shadow-lg shadow-blue-500/20">
@@ -244,23 +324,17 @@ export default function Dashboard() {
         </div>
 
         <div className="pt-6 border-t border-slate-800/80 space-y-2">
-          <button
-            onClick={() => router.push('/change-password')}
-            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:bg-slate-800 hover:text-white transition"
-          >
+          <button onClick={() => router.push('/change-password')} className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:bg-slate-800 hover:text-white transition">
             <Key size={16} /> পাসওয়ার্ড পরিবর্তন
           </button>
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-semibold text-red-400 hover:bg-red-500/10 transition"
-          >
+          <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-semibold text-red-400 hover:bg-red-500/10 transition">
             <LogOut size={16} /> লগ আউট
           </button>
         </div>
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 p-6 md:p-10 overflow-y-auto">
+      <main className="flex-1 p-6 md:p-10 overflow-y-auto print:hidden">
         {/* DASHBOARD TAB */}
         {activeTab === 'dashboard' && (
           <div className="space-y-8 animate-fade-in">
@@ -280,15 +354,14 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
-
-            {/* Comprehensive Add/Edit Student Form */}
+{/* Add/Edit Form */}
             <div className="bg-slate-900/60 border border-slate-800/80 backdrop-blur-lg p-6 md:p-8 rounded-2xl shadow-xl">
               <div className="flex justify-between items-center mb-6 border-b border-slate-800 pb-4">
                 <h3 className="text-xl font-bold flex items-center gap-2 text-blue-400">
                   <Plus size={22}/> {isEditingStudent ? 'স্টুডেন্টের তথ্য পরিবর্তন করুন' : 'নতুন স্টুডেন্ট এর ডিটেইলস যোগ করুন'}
                 </h3>
                 {isEditingStudent && (
-                  <button onClick={resetStudentForm} className="text-xs bg-slate-800 px-3 py-1.5 rounded-lg text-slate-300 flex items-center gap-1 hover:bg-slate-700">
+                  <button onClick={resetStudentForm} className="text-xs bg-slate-800 px-3 py-1.5 rounded-lg text-slate-300 flex items-center gap-1">
                     <X size={14}/> নতুন অ্যাড মোড
                   </button>
                 )}
@@ -296,121 +369,54 @@ export default function Dashboard() {
               
               <form onSubmit={handleSaveStudent} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {/* Name */}
                   <div>
                     <label className="text-xs font-semibold text-slate-300 mb-2 flex items-center gap-2"><User size={14}/> স্টুডেন্টের নাম *</label>
-                    <input
-                      type="text"
-                      name="name"
-                      placeholder="যেমন: Saifur Rahaman"
-                      value={formData.name}
-                      onChange={handleInputChange}
-                      className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    />
+                    <input type="text" name="name" placeholder="যেমন: Saifur Rahaman" value={formData.name} onChange={handleInputChange} className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500" required />
                   </div>
 
-                  {/* Roll No */}
                   <div>
                     <label className="text-xs font-semibold text-slate-300 mb-2 block">রোল নম্বর *</label>
-                    <input
-                      type="number"
-                      name="rollNo"
-                      placeholder="যেমন: 101"
-                      value={formData.rollNo}
-                      onChange={handleInputChange}
-                      className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    />
+                    <input type="number" name="rollNo" placeholder="যেমন: 101" value={formData.rollNo} onChange={handleInputChange} className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500" required />
                   </div>
 
-                  {/* Class */}
                   <div>
                     <label className="text-xs font-semibold text-slate-300 mb-2 flex items-center gap-2"><BookOpen size={14}/> ক্লাস / শ্রেণী *</label>
-                    <input
-                      type="text"
-                      name="studentClass"
-                      placeholder="যেমন: Class 10"
-                      value={formData.studentClass}
-                      onChange={handleInputChange}
-                      className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    />
+                    <input type="text" name="studentClass" placeholder="যেমন: Class 10" value={formData.studentClass} onChange={handleInputChange} className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500" required />
                   </div>
 
-                  {/* Phone */}
                   <div>
                     <label className="text-xs font-semibold text-slate-300 mb-2 flex items-center gap-2"><Phone size={14}/> মোবাইল নম্বর</label>
-                    <input
-                      type="text"
-                      name="phone"
-                      placeholder="+880 / +91 ..."
-                      value={formData.phone}
-                      onChange={handleInputChange}
-                      className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                    <input type="text" name="phone" placeholder="+880 / +91 ..." value={formData.phone} onChange={handleInputChange} className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
 
-                  {/* Blood Group */}
                   <div>
                     <label className="text-xs font-semibold text-slate-300 mb-2 flex items-center gap-2"><Droplet size={14}/> ব্লাড গ্রুপ</label>
-                    <select
-                      name="bloodGroup"
-                      value={formData.bloodGroup}
-                      onChange={handleInputChange}
-                      className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
+                    <select name="bloodGroup" value={formData.bloodGroup} onChange={handleInputChange} className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
                       <option value="">সিলেক্ট করুন</option>
-                      <option value="A+">A+</option>
-                      <option value="A-">A-</option>
-                      <option value="B+">B+</option>
-                      <option value="B-">B-</option>
-                      <option value="O+">O+</option>
-                      <option value="O-">O-</option>
-                      <option value="AB+">AB+</option>
-                      <option value="AB-">AB-</option>
+                      <option value="A+">A+</option><option value="A-">A-</option>
+                      <option value="B+">B+</option><option value="B-">B-</option>
+                      <option value="O+">O+</option><option value="O-">O-</option>
+                      <option value="AB+">AB+</option><option value="AB-">AB-</option>
                     </select>
                   </div>
 
-                  {/* Gender */}
                   <div>
                     <label className="text-xs font-semibold text-slate-300 mb-2 block">জেন্ডার</label>
-                    <select
-                      name="gender"
-                      value={formData.gender}
-                      onChange={handleInputChange}
-                      className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
+                    <select name="gender" value={formData.gender} onChange={handleInputChange} className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
                       <option value="Male">Male</option>
                       <option value="Female">Female</option>
                       <option value="Other">Other</option>
                     </select>
                   </div>
 
-                  {/* Photo URL */}
                   <div className="md:col-span-2">
                     <label className="text-xs font-semibold text-slate-300 mb-2 flex items-center gap-2"><Image size={14}/> ফটো ইমেজ URL (Optional)</label>
-                    <input
-                      type="url"
-                      name="photoUrl"
-                      placeholder="https://example.com/photo.jpg"
-                      value={formData.photoUrl}
-                      onChange={handleInputChange}
-                      className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                    <input type="url" name="photoUrl" placeholder="https://example.com/photo.jpg" value={formData.photoUrl} onChange={handleInputChange} className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
 
-                  {/* Address */}
                   <div className="md:col-span-3">
                     <label className="text-xs font-semibold text-slate-300 mb-2 flex items-center gap-2"><MapPin size={14}/> বর্তমান ঠিকানা</label>
-                    <input
-                      type="text"
-                      name="address"
-                      placeholder="গ্রাম/শহর, জেলা..."
-                      value={formData.address}
-                      onChange={handleInputChange}
-                      className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                    <input type="text" name="address" placeholder="গ্রাম/শহর, জেলা..." value={formData.address} onChange={handleInputChange} className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
                 </div>
 
@@ -421,7 +427,8 @@ export default function Dashboard() {
             </div>
           </div>
         )}
- {/* STUDENTS TAB (EDIT / DELETE OPTION ADDED) */}
+
+        {/* STUDENTS TAB */}
         {activeTab === 'students' && (
           <div className="space-y-6 animate-fade-in">
             <h2 className="text-2xl font-bold">স্টুডেন্টদের বিস্তারিত তালিকা</h2>
@@ -443,11 +450,7 @@ export default function Dashboard() {
                     {students.map((st) => (
                       <tr key={st.id} className="hover:bg-slate-800/30">
                         <td className="p-4">
-                          <img 
-                            src={st.photo_url || 'https://via.placeholder.com/150'} 
-                            alt={st.name} 
-                            className="w-10 h-10 rounded-full object-cover border border-slate-700" 
-                          />
+                          <img src={st.photo_url || 'https://via.placeholder.com/150'} alt={st.name} className="w-10 h-10 rounded-full object-cover border border-slate-700" />
                         </td>
                         <td className="p-4 font-bold text-blue-400">#{st.roll_no}</td>
                         <td className="p-4 font-medium">{st.name}</td>
@@ -455,20 +458,8 @@ export default function Dashboard() {
                         <td className="p-4 text-slate-400">{st.phone || 'N/A'}</td>
                         <td className="p-4 text-rose-400 font-semibold">{st.blood_group || 'N/A'}</td>
                         <td className="p-4 flex gap-2">
-                          <button 
-                            onClick={() => handleEditClick(st)} 
-                            className="bg-amber-500/10 text-amber-400 p-2 rounded-lg hover:bg-amber-500/20 transition"
-                            title="Edit"
-                          >
-                            <Edit size={16} />
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteStudent(st.id)} 
-                            className="bg-red-500/10 text-red-400 p-2 rounded-lg hover:bg-red-500/20 transition"
-                            title="Delete"
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                          <button onClick={() => handleEditClick(st)} className="bg-amber-500/10 text-amber-400 p-2 rounded-lg hover:bg-amber-500/20 transition"><Edit size={16} /></button>
+                          <button onClick={() => handleDeleteStudent(st.id)} className="bg-red-500/10 text-red-400 p-2 rounded-lg hover:bg-red-500/20 transition"><Trash2 size={16} /></button>
                         </td>
                       </tr>
                     ))}
@@ -484,10 +475,7 @@ export default function Dashboard() {
           <div className="space-y-6 animate-fade-in">
             <h2 className="text-2xl font-bold">আর্টিফিশিয়াল আইডি কার্ড জেনারেটর</h2>
             <div className="flex gap-4">
-              <select
-                onChange={(e) => setSelectedStudent(students.find(s => s.id === e.target.value))}
-                className="bg-slate-900 border border-slate-800 p-3 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
+              <select onChange={(e) => setSelectedStudent(students.find(s => s.id === e.target.value))} className="bg-slate-900 border border-slate-800 p-3 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="">স্টুডেন্ট সিলেক্ট করুন</option>
                 {students.map(s => <option key={s.id} value={s.id}>{s.name} (Roll: {s.roll_no} - {s.student_class})</option>)}
               </select>
@@ -499,11 +487,7 @@ export default function Dashboard() {
                 <p className="text-[10px] text-slate-400">{school.address}</p>
 
                 <div className="my-4">
-                  <img 
-                    src={selectedStudent.photo_url || 'https://via.placeholder.com/150'} 
-                    alt={selectedStudent.name} 
-                    className="w-24 h-24 rounded-full mx-auto object-cover border-2 border-blue-400 shadow-md"
-                  />
+                  <img src={selectedStudent.photo_url || 'https://via.placeholder.com/150'} alt={selectedStudent.name} className="w-24 h-24 rounded-full mx-auto object-cover border-2 border-blue-400 shadow-md" />
                 </div>
 
                 <h4 className="font-bold text-xl text-white">{selectedStudent.name}</h4>
@@ -520,105 +504,90 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* MARKSHEET TAB (FUNCTIONAL) */}
+        {/* ROLL-WISE MARKS ENTRY & MARKSHEET TAB */}
         {activeTab === 'marksheet' && (
           <div className="space-y-8 animate-fade-in">
-            <h2 className="text-2xl font-bold">মার্কশিট জেনারেটর প্যানেল</h2>
-            
-            <form onSubmit={handleGenerateMarksheet} className="bg-slate-900/60 border border-slate-800 p-6 rounded-2xl space-y-6 max-w-2xl">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs text-slate-400 block mb-2">স্টুডেন্ট সিলেক্ট করুন *</label>
-                  <select
-                    onChange={(e) => setMarksheetStudent(students.find(s => s.id === e.target.value))}
-                    className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  >
-                    <option value="">স্টুডেন্ট বেছে নিন</option>
-                    {students.map(s => <option key={s.id} value={s.id}>{s.name} (Roll: {s.roll_no})</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-slate-400 block mb-2">পরীক্ষার নাম</label>
-                  <input
-                    type="text"
-                    value={marks.examName}
-                    onChange={(e) => setMarks({ ...marks, examName: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-white"
-                  />
-                </div>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <h2 className="text-2xl font-bold">রোল অনুযায়ী মার্কস এনট্রি ও মার্কশিট প্যানেল</h2>
+                <p className="text-xs text-slate-400 mt-1">এখানে মৌখিক (Oral) ও লিখিত (Theory) নম্বর আলাদা ইনপুট দিন</p>
               </div>
+              <input
+                type="text"
+                value={examName}
+                onChange={(e) => setExamName(e.target.value)}
+                className="bg-slate-900 border border-slate-800 p-2.5 rounded-xl text-sm text-white"
+                placeholder="Ex: Annual Exam 2026"
+              />
+            </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <label className="text-xs text-slate-400 block mb-1">বাংলা (Bangla)</label>
-                  <input type="number" value={marks.bangla} onChange={(e) => setMarks({ ...marks, bangla: e.target.value })} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-white" />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-400 block mb-1">ইংরেজি (English)</label>
-                  <input type="number" value={marks.english} onChange={(e) => setMarks({ ...marks, english: e.target.value })} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-white" />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-400 block mb-1">গণিত (Math)</label>
-                  <input type="number" value={marks.math} onChange={(e) => setMarks({ ...marks, math: e.target.value })} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-white" />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-400 block mb-1">বিজ্ঞান (Science)</label>
-                  <input type="number" value={marks.science} onChange={(e) => setMarks({ ...marks, science: e.target.value })} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-white" />
-                </div>
-              </div>
-
-              <button type="submit" className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-3 rounded-xl font-bold">
-                মার্কশিট তৈরি করুন
-              </button>
-            </form>
-
-            {/* Generated Marksheet Display */}
-            {generatedMarksheet && (
-              <div className="bg-white text-slate-900 p-8 rounded-2xl max-w-2xl shadow-2xl border border-slate-200 animate-fade-in">
-                <div className="text-center border-b pb-4 mb-6">
-                  <h3 className="text-2xl font-black text-blue-900">{school.school_name}</h3>
-                  <p className="text-xs text-slate-600">{school.address} | Phone: {school.phone}</p>
-                  <span className="inline-block bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full mt-2">
-                    ACADEMIC MARKSHEET - {generatedMarksheet.examName}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 text-sm mb-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                  <p><strong>Student Name:</strong> {generatedMarksheet.student.name}</p>
-                  <p><strong>Roll No:</strong> #{generatedMarksheet.student.roll_no}</p>
-                  <p><strong>Class:</strong> {generatedMarksheet.student.student_class}</p>
-                  <p><strong>Overall Grade:</strong> <span className="font-extrabold text-blue-700">{generatedMarksheet.grade}</span></p>
-                </div>
-
-                <table className="w-full text-left text-sm border-collapse mb-6">
-                  <thead>
-                    <tr className="bg-slate-100 border-b">
-                      <th className="p-3">Subject</th>
-                      <th className="p-3 text-right">Marks Obtained</th>
+            {/* Student Roll-wise Mark Entry Table */}
+            <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden shadow-xl">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-800/60 text-slate-300">
+                    <tr>
+                      <th className="p-3">রোল ও নাম</th>
+                      <th className="p-3 text-center">বাংলা (Oral | Theory)</th>
+                      <th className="p-3 text-center">ইংরেজি (Oral | Theory)</th>
+                      <th className="p-3 text-center">গণিত (Oral | Theory)</th>
+                      <th className="p-3 text-center">বিজ্ঞান (Oral | Theory)</th>
+                      <th className="p-3 text-center">ভিউ মার্কশিট</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {generatedMarksheet.subjects.map((s, idx) => (
-                      <tr key={idx} className="border-b">
-                        <td className="p-3">{s.name}</td>
-                        <td className="p-3 text-right font-bold">{s.mark}</td>
-                      </tr>
-                    ))}
+                  <tbody className="divide-y divide-slate-800">
+                    {students.map((st) => {
+                      const m = studentMarks[st.id] || {};
+                      return (
+                        <tr key={st.id} className="hover:bg-slate-800/30">
+                          <td className="p-3 font-medium">
+                            <span className="text-blue-400 font-bold">#{st.roll_no}</span> - {st.name}
+                            <p className="text-[10px] text-slate-400">{st.student_class}</p>
+                          </td>
+                          {/* Bangla */}
+                          <td className="p-3 text-center">
+                            <div className="flex gap-1 justify-center">
+                              <input type="number" placeholder="O" value={m.bangla_oral || ''} onChange={(e) => handleMarkChange(st.id, 'bangla_oral', e.target.value)} className="w-12 bg-slate-950 border border-slate-800 text-center p-1 rounded" />
+                              <input type="number" placeholder="T" value={m.bangla_theory || ''} onChange={(e) => handleMarkChange(st.id, 'bangla_theory', e.target.value)} className="w-12 bg-slate-950 border border-slate-800 text-center p-1 rounded" />
+                            </div>
+                          </td>
+                          {/* English */}
+                          <td className="p-3 text-center">
+                            <div className="flex gap-1 justify-center">
+                              <input type="number" placeholder="O" value={m.english_oral || ''} onChange={(e) => handleMarkChange(st.id, 'english_oral', e.target.value)} className="w-12 bg-slate-950 border border-slate-800 text-center p-1 rounded" />
+                              <input type="number" placeholder="T" value={m.english_theory || ''} onChange={(e) => handleMarkChange(st.id, 'english_theory', e.target.value)} className="w-12 bg-slate-950 border border-slate-800 text-center p-1 rounded" />
+                            </div>
+                          </td>
+                          {/* Math */}
+                          <td className="p-3 text-center">
+                            <div className="flex gap-1 justify-center">
+                              <input type="number" placeholder="O" value={m.math_oral || ''} onChange={(e) => handleMarkChange(st.id, 'math_oral', e.target.value)} className="w-12 bg-slate-950 border border-slate-800 text-center p-1 rounded" />
+                              <input type="number" placeholder="T" value={m.math_theory || ''} onChange={(e) => handleMarkChange(st.id, 'math_theory', e.target.value)} className="w-12 bg-slate-950 border border-slate-800 text-center p-1 rounded" />
+                            </div>
+                          </td>
+                          {/* Science */}
+                          <td className="p-3 text-center">
+                            <div className="flex gap-1 justify-center">
+                              <input type="number" placeholder="O" value={m.science_oral || ''} onChange={(e) => handleMarkChange(st.id, 'science_oral', e.target.value)} className="w-12 bg-slate-950 border border-slate-800 text-center p-1 rounded" />
+                              <input type="number" placeholder="T" value={m.science_theory || ''} onChange={(e) => handleMarkChange(st.id, 'science_theory', e.target.value)} className="w-12 bg-slate-950 border border-slate-800 text-center p-1 rounded" />
+                            </div>
+                          </td>
+                          {/* Print Action */}
+                          <td className="p-3 text-center">
+                            <button
+                              onClick={() => setSelectedMarksheetStudent(st)}
+                              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition"
+                            >
+                              মার্কশিট
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
-
-                <div className="flex justify-between items-center pt-4 border-t">
-                  <div>
-                    <p className="text-xs text-slate-500">Total Marks: <strong>{generatedMarksheet.total} / 400</strong></p>
-                    <p className="text-xs text-slate-500">Average: <strong>{generatedMarksheet.avg}%</strong></p>
-                  </div>
-                  <button onClick={() => window.print()} className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-slate-800">
-                    <Printer size={16} /> প্রিন্ট / PDF
-                  </button>
-                </div>
               </div>
-            )}
+            </div>
           </div>
         )}
 
@@ -627,10 +596,7 @@ export default function Dashboard() {
           <div className="space-y-6 animate-fade-in">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">স্কুল প্রোফাইল ও সেটিংস</h2>
-              <button
-                onClick={() => setEditSchool(!editSchool)}
-                className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-xl text-xs font-semibold"
-              >
+              <button onClick={() => setEditSchool(!editSchool)} className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-xl text-xs font-semibold">
                 <Edit size={16} /> {editSchool ? 'বাতিল' : 'এডিট করুন'}
               </button>
             </div>
@@ -640,30 +606,15 @@ export default function Dashboard() {
                 <form onSubmit={handleUpdateSchool} className="space-y-4">
                   <div>
                     <label className="text-xs text-slate-400 block mb-1">স্কুলের নাম</label>
-                    <input
-                      type="text"
-                      value={school.school_name}
-                      onChange={(e) => setSchool({ ...school, school_name: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                    <input type="text" value={school.school_name} onChange={(e) => setSchool({ ...school, school_name: e.target.value })} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
                   <div>
                     <label className="text-xs text-slate-400 block mb-1">ঠিকানা</label>
-                    <input
-                      type="text"
-                      value={school.address}
-                      onChange={(e) => setSchool({ ...school, address: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                    <input type="text" value={school.address} onChange={(e) => setSchool({ ...school, address: e.target.value })} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
                   <div>
                     <label className="text-xs text-slate-400 block mb-1">ফোন নম্বর</label>
-                    <input
-                      type="text"
-                      value={school.phone}
-                      onChange={(e) => setSchool({ ...school, phone: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                    <input type="text" value={school.phone} onChange={(e) => setSchool({ ...school, phone: e.target.value })} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
                   <button type="submit" className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 px-6 py-3 rounded-xl text-sm font-bold shadow-lg shadow-emerald-600/20">
                     <Save size={16} /> সেভ করুন
@@ -682,4 +633,5 @@ export default function Dashboard() {
       </main>
     </div>
   );
-                      }
+                }
+            
