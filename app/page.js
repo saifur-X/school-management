@@ -30,7 +30,7 @@ export default function Dashboard() {
 
   // Student Form & Detail Modal State
   const [formData, setFormData] = useState({
-    id: null, name: '', rollNo: '', studentClass: 'Class 1', phone: '', bloodGroup: '', address: '', gender: 'Male', photoUrl: ''
+    id: null, name: '', fatherName: '', rollNo: '', studentClass: 'Class 1', phone: '', bloodGroup: '', address: '', gender: 'Male', photoUrl: ''
   });
   const [isEditingStudent, setIsEditingStudent] = useState(false);
   const [contactModalStudent, setContactModalStudent] = useState(null);
@@ -42,7 +42,7 @@ export default function Dashboard() {
   const [selectedConfigClass, setSelectedConfigClass] = useState('Class 1');
   const [classConfig, setClassConfig] = useState({
     academic_year: '2026',
-    start_month: 1, // 1 = January
+    start_month: 1,
     subjects: [{ name: 'Bangla', oral: 20, theory: 80 }, { name: 'English', oral: 20, theory: 80 }],
     admission_fee: 1000, tuition_fee: 500, exam1_fee: 200, exam2_fee: 200, exam3_fee: 200, custom_fee: 0
   });
@@ -142,6 +142,7 @@ export default function Dashboard() {
     if (isEditingStudent) {
       const { error } = await supabase.from('students').update({
         name: formData.name,
+        father_name: formData.fatherName,
         student_class: formData.studentClass,
         phone: formData.phone,
         blood_group: formData.bloodGroup,
@@ -160,6 +161,7 @@ export default function Dashboard() {
       const roll = getNextRollForClass(formData.studentClass);
       const { error } = await supabase.from('students').insert([{
         name: formData.name,
+        father_name: formData.fatherName,
         roll_no: roll,
         student_class: formData.studentClass,
         phone: formData.phone,
@@ -181,8 +183,16 @@ export default function Dashboard() {
 
   const handleEditClick = (st) => {
     setFormData({
-      id: st.id, name: st.name, rollNo: st.roll_no, studentClass: st.student_class,
-      phone: st.phone || '', bloodGroup: st.blood_group || '', address: st.address || '', gender: st.gender || 'Male', photoUrl: st.photo_url || ''
+      id: st.id, 
+      name: st.name, 
+      fatherName: st.father_name || '', 
+      rollNo: st.roll_no, 
+      studentClass: st.student_class,
+      phone: st.phone || '', 
+      bloodGroup: st.blood_group || '', 
+      address: st.address || '', 
+      gender: st.gender || 'Male', 
+      photoUrl: st.photo_url || ''
     });
     setIsEditingStudent(true);
     setActiveTab('dashboard');
@@ -226,7 +236,7 @@ export default function Dashboard() {
   };
 
   const resetStudentForm = () => {
-    setFormData({ id: null, name: '', rollNo: getNextRollForClass('Class 1'), studentClass: 'Class 1', phone: '', bloodGroup: '', address: '', gender: 'Male', photoUrl: '' });
+    setFormData({ id: null, name: '', fatherName: '', rollNo: getNextRollForClass('Class 1'), studentClass: 'Class 1', phone: '', bloodGroup: '', address: '', gender: 'Male', photoUrl: '' });
     setIsEditingStudent(false);
   };
 
@@ -251,7 +261,6 @@ export default function Dashboard() {
     });
   };
 
-  // Class Management Functions
   const fetchClassConfigDetails = async (cls) => {
     setSelectedConfigClass(cls);
     const { data } = await supabase.from('class_configs').select('*').eq('class_name', cls).single();
@@ -302,34 +311,48 @@ export default function Dashboard() {
     });
   };
 
-  // Dynamic Fee Selector according to Class Config & Month calculation
-  const updateBaseFeeBySelection = (feeType, configData) => {
+  const updateBaseFeeBySelection = (feeType, configData, studentTransactions = erpTransactions) => {
     if (!configData) return;
     setErpFeeType(feeType);
     
+    const previousTx = studentTransactions.find(tx => tx.fee_type === feeType);
+
     if (feeType === 'Tuition Fee') {
-      const currentMonth = new Date().getMonth() + 1; // 1 to 12
+      const currentMonth = new Date().getMonth() + 1;
       const startM = configData.start_month || 1;
       const activeMonthsCount = Math.max(1, (currentMonth - startM) + 1);
       const calculatedTuition = (configData.tuition_fee || 0) * activeMonthsCount;
       setErpBaseAmount(calculatedTuition);
-    } else if (feeType === 'Admission Fee') setErpBaseAmount(configData.admission_fee || 0);
-    else if (feeType === 'Term 1 Exam Fee') setErpBaseAmount(configData.exam1_fee || 0);
-    else if (feeType === 'Term 2 Exam Fee') setErpBaseAmount(configData.exam2_fee || 0);
-    else if (feeType === 'Term 3 Exam Fee') setErpBaseAmount(configData.exam3_fee || 0);
-    else if (feeType === 'Custom Fee') setErpBaseAmount(configData.custom_fee || 0);
+    } else {
+      let feeVal = 0;
+      if (feeType === 'Admission Fee') feeVal = configData.admission_fee || 0;
+      else if (feeType === 'Term 1 Exam Fee') feeVal = configData.exam1_fee || 0;
+      else if (feeType === 'Term 2 Exam Fee') feeVal = configData.exam2_fee || 0;
+      else if (feeType === 'Term 3 Exam Fee') feeVal = configData.exam3_fee || 0;
+      else if (feeType === 'Custom Fee') feeVal = configData.custom_fee || 0;
+
+      if (previousTx && previousTx.status === 'Paid') {
+        setErpBaseAmount(0);
+      } else if (previousTx && previousTx.pending_amount > 0) {
+        setErpBaseAmount(previousTx.pending_amount);
+      } else {
+        setErpBaseAmount(feeVal);
+      }
+    }
   };
 
   const handleSelectErpStudent = async (st) => {
     setErpStudent(st);
     if (!st) return;
-    const { data: configData } = await supabase.from('class_configs').select('*').eq('class_name', st.student_class).single();
-    if (configData) {
-      updateBaseFeeBySelection('Tuition Fee', configData);
-    }
 
     const { data: txData } = await supabase.from('erp_transactions').select('*').eq('student_id', st.id).order('created_at', { ascending: false });
-    setErpTransactions(txData || []);
+    const currentTxList = txData || [];
+    setErpTransactions(currentTxList);
+
+    const { data: configData } = await supabase.from('class_configs').select('*').eq('class_name', st.student_class).single();
+    if (configData) {
+      updateBaseFeeBySelection(erpFeeType, configData, currentTxList);
+    }
   };
 
   const handleCreateInvoice = async () => {
@@ -375,10 +398,14 @@ export default function Dashboard() {
     }
   };
 
-  // Overall Financial Totals
+  // Financial Totals calculation with robust checks
   const totalCollectedRevenue = allErpTransactions.reduce((acc, curr) => acc + (Number(curr.paid_amount) || Number(curr.final_amount) || 0), 0);
-  const totalPendingDue = allErpTransactions.reduce((acc, curr) => acc + (Number(curr.pending_amount) || 0), 0);
-  const pendingTransactionsList = allErpTransactions.filter(tx => tx.pending_amount > 0 || tx.status === 'Pending');
+  const totalPendingDue = allErpTransactions.reduce((acc, curr) => {
+    const pending = Number(curr.pending_amount) || (Number(curr.final_amount || 0) - Number(curr.paid_amount || 0));
+    return acc + (pending > 0 ? pending : 0);
+  }, 0);
+  
+  const pendingTransactionsList = allErpTransactions.filter(tx => (Number(tx.pending_amount) > 0) || tx.status === 'Pending');
 
   if (!session) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white font-medium">Loading EduAdmin...</div>;
 
@@ -395,7 +422,8 @@ export default function Dashboard() {
             <div className="text-center">
               <img src={contactModalStudent.photo_url || 'https://via.placeholder.com/150'} alt="" className="w-20 h-20 rounded-full mx-auto object-cover border-2 border-blue-500 mb-3" />
               <h3 className="text-xl font-bold text-white">{contactModalStudent.name}</h3>
-              <p className="text-xs text-blue-400 font-semibold">{contactModalStudent.student_class} | Roll: #{contactModalStudent.roll_no}</p>
+              {contactModalStudent.father_name && <p className="text-xs text-slate-400">Father: {contactModalStudent.father_name}</p>}
+              <p className="text-xs text-blue-400 font-semibold mt-1">{contactModalStudent.student_class} | Roll: #{contactModalStudent.roll_no}</p>
             </div>
             
             <div className="space-y-3 bg-slate-950 p-4 rounded-2xl border border-slate-800 text-xs text-slate-300">
@@ -431,14 +459,23 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* PRINTABLE MONEY RECEIPT MODAL */}
+      {/* PRINTABLE MONEY RECEIPT & MARKSHEET MODAL */}
       {receiptData && (
         <div className="fixed inset-0 bg-white text-slate-900 z-50 p-6 overflow-y-auto print:p-0">
           <style jsx global>{`
             @media print {
-              @page { size: A4 portrait; margin: 10mm; }
-              body { background: white !important; color: black !important; }
+              @page { size: A4 portrait; margin: 5mm; }
+              body { background: #ffffff !important; color: #000000 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
               .no-print { display: none !important; }
+              .print-container {
+                width: 100% !important;
+                max-width: 100% !important;
+                margin: 0 !important;
+                padding: 10px !important;
+                box-shadow: none !important;
+                border: 1px solid #000 !important;
+                page-break-inside: avoid;
+              }
             }
           `}</style>
 
@@ -451,7 +488,7 @@ export default function Dashboard() {
             </button>
           </div>
 
-          <div className="max-w-xl mx-auto border-2 border-slate-900 p-8 rounded-xl bg-white shadow-2xl relative">
+          <div className="print-container max-w-xl mx-auto border-2 border-slate-900 p-8 rounded-xl bg-white shadow-2xl relative">
             <div className="text-center border-b-2 border-slate-900 pb-4 mb-4">
               <h1 className="text-2xl font-black uppercase text-slate-900">{school.school_name || 'ISLAMIC NATIONAL SCHOOL'}</h1>
               <p className="text-xs text-slate-600">{school.address} | Phone: {school.phone}</p>
@@ -467,6 +504,7 @@ export default function Dashboard() {
 
             <div className="bg-slate-100 p-3 rounded-lg text-xs space-y-1 border mb-4">
               <p><strong>Student Name:</strong> {receiptData.student.name}</p>
+              {receiptData.student.father_name && <p><strong>Father's Name:</strong> {receiptData.student.father_name}</p>}
               <p><strong>Class:</strong> {receiptData.student.student_class} | <strong>Roll:</strong> #{receiptData.student.roll_no}</p>
               <p><strong>Contact Phone:</strong> {receiptData.student.phone || 'N/A'}</p>
             </div>
@@ -643,6 +681,11 @@ export default function Dashboard() {
                   </div>
 
                   <div>
+                    <label className="text-xs font-semibold text-slate-300 mb-2 flex items-center gap-2"><User size={14}/> বাবার নাম</label>
+                    <input type="text" name="fatherName" placeholder="অভিভাবক/বাবার নাম" value={formData.fatherName} onChange={handleInputChange} className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-white" />
+                  </div>
+
+                  <div>
                     <label className="text-xs font-semibold text-slate-300 mb-2 flex items-center gap-2"><Phone size={14}/> মোবাইল নম্বর</label>
                     <input type="text" name="phone" placeholder="+91 ..." value={formData.phone} onChange={handleInputChange} className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-white" />
                   </div>
@@ -683,7 +726,6 @@ export default function Dashboard() {
             </div>
           </div>
         )}
-
         {/* STUDENTS LIST & CONTACT VIEW TAB */}
         {activeTab === 'students' && (
           <div className="space-y-6 animate-fade-in">
@@ -720,6 +762,7 @@ export default function Dashboard() {
                     <tr>
                       <th className="p-4">রোল</th>
                       <th className="p-4">নাম</th>
+                      <th className="p-4">বাবার নাম</th>
                       <th className="p-4">ক্লাস</th>
                       <th className="p-4">ফোন</th>
                       <th className="p-4">কন্টাক্ট অপশন</th>
@@ -731,6 +774,7 @@ export default function Dashboard() {
                       <tr key={st.id} className="hover:bg-slate-800/30">
                         <td className="p-4 font-bold text-blue-400">#{st.roll_no}</td>
                         <td className="p-4 font-medium">{st.name}</td>
+                        <td className="p-4 text-slate-400">{st.father_name || 'N/A'}</td>
                         <td className="p-4"><span className="bg-blue-500/10 text-blue-400 px-2.5 py-1 rounded-lg text-xs">{st.student_class}</span></td>
                         <td className="p-4 text-slate-400">{st.phone || 'N/A'}</td>
                         <td className="p-4">
@@ -1001,7 +1045,7 @@ export default function Dashboard() {
                             <p className="text-[10px] text-slate-400">{tx.students?.student_class} | Roll: #{tx.students?.roll_no}</p>
                           </td>
                           <td className="p-3 text-slate-300">{tx.fee_type}</td>
-                          <td className="p-3 text-right font-black text-rose-400">₹{tx.pending_amount}</td>
+                          <td className="p-3 text-right font-black text-rose-400">₹{tx.pending_amount || (Number(tx.final_amount || 0) - Number(tx.paid_amount || 0))}</td>
                           <td className="p-3 text-center">
                             {tx.students?.phone ? (
                               <a href={`tel:${tx.students.phone}`} className="bg-emerald-600/20 text-emerald-400 px-2.5 py-1 rounded-lg font-bold hover:bg-emerald-600/40 inline-flex items-center gap-1">
@@ -1035,7 +1079,8 @@ export default function Dashboard() {
                 <p className="text-[10px] text-slate-400">{school.address}</p>
                 <img src={selectedIdStudent.photo_url || 'https://via.placeholder.com/150'} alt="" className="w-24 h-24 rounded-full mx-auto my-4 object-cover border-2 border-blue-400" />
                 <h4 className="font-bold text-xl text-white">{selectedIdStudent.name}</h4>
-                <p className="text-xs text-blue-400 font-semibold mb-4">{selectedIdStudent.student_class} | Roll: #{selectedIdStudent.roll_no}</p>
+                {selectedIdStudent.father_name && <p className="text-xs text-slate-300">Father: {selectedIdStudent.father_name}</p>}
+                <p className="text-xs text-blue-400 font-semibold my-2">{selectedIdStudent.student_class} | Roll: #{selectedIdStudent.roll_no}</p>
                 <div className="text-left text-xs space-y-1.5 bg-slate-950/70 p-3.5 rounded-2xl border border-slate-800/80 text-slate-300">
                   <p><strong>Blood:</strong> <span className="text-rose-400 font-bold">{selectedIdStudent.blood_group || 'N/A'}</span></p>
                   <p><strong>Phone:</strong> {selectedIdStudent.phone || 'N/A'}</p>
@@ -1077,4 +1122,4 @@ export default function Dashboard() {
       </main>
     </div>
   );
-                  }
+                }
