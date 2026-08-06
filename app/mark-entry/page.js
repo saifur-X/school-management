@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Printer, X, Save, CheckCircle2 } from 'lucide-react';
 
 export default function MarkEntryPage() {
+  const [classList, setClassList] = useState(['Class 1','Class 2','Class 3','Class 4','Class 5','Class 6','Class 7','Class 8','Class 9','Class 10','Class 11','Class 12']);
   const [selectedClass, setSelectedClass] = useState('Class 1');
   const [examName, setExamName] = useState('Annual Examination 2026');
   const [students, setStudents] = useState([]);
@@ -19,18 +20,28 @@ export default function MarkEntryPage() {
   const router = useRouter();
 
   useEffect(() => {
+    fetchInitialData();
+  }, []);
+
+  useEffect(() => {
     fetchClassData();
-    fetchSchool();
   }, [selectedClass, examName]);
 
-  const fetchSchool = async () => {
-    const { data } = await supabase.from('school_settings').select('*').eq('id', 1).single();
-    if (data) setSchool(data);
+  const fetchInitialData = async () => {
+    const { data: schoolData } = await supabase.from('school_settings').select('*').eq('id', 1).single();
+    if (schoolData) setSchool(schoolData);
+
+    const { data: classesData } = await supabase.from('class_configs').select('class_name');
+    if (classesData && classesData.length > 0) {
+      const customClasses = classesData.map(d => d.class_name);
+      setClassList(Array.from(new Set([...customClasses])));
+      setSelectedClass(customClasses[0]); // Auto select first available class
+    }
   };
 
   const fetchClassData = async () => {
     const { data: configData } = await supabase.from('class_configs').select('subjects').eq('class_name', selectedClass).single();
-    if (configData && configData.subjects) {
+    if (configData && configData.subjects && configData.subjects.length > 0) {
       setSubjects(configData.subjects);
     } else {
       setSubjects([{ name: 'Bangla', oral: 20, theory: 80 }, { name: 'English', oral: 20, theory: 80 }]);
@@ -45,7 +56,9 @@ export default function MarkEntryPage() {
       const loadedMarksObj = {};
       savedMarksData.forEach(row => { loadedMarksObj[row.student_id] = row.marks_data; });
       setMarks(loadedMarksObj);
-    } else { setMarks({}); }
+    } else { 
+      setMarks({}); 
+    }
   };
 
   const handleMarkChange = (stId, subName, type, val, maxMark) => {
@@ -64,6 +77,20 @@ export default function MarkEntryPage() {
     setSaveStatus('Saved!'); setTimeout(() => setSaveStatus(''), 2000);
   };
 
+  const handleSaveAllMarks = async () => {
+    setSaving(true);
+    const markEntries = Object.keys(marks).map(studentId => ({
+      student_id: studentId, class_name: selectedClass, exam_name: examName, marks_data: marks[studentId]
+    }));
+
+    if (markEntries.length === 0) { alert('কোনো মার্ক্স ইনপুট দেওয়া হয়নি!'); setSaving(false); return; }
+
+    const { error } = await supabase.from('marksheets').upsert(markEntries, { onConflict: 'student_id,exam_name' });
+    if (error) alert('মার্ক্স সেভ করা সম্ভব হয়নি: ' + error.message);
+    else alert('সকল মার্ক্স ডাটাবেসে স্থায়ীভাবে সেভ হয়েছে!');
+    setSaving(false);
+  };
+
   const calculateGrade = (avg) => {
     if (avg >= 80) return 'A+'; if (avg >= 70) return 'A'; if (avg >= 60) return 'A-';
     if (avg >= 50) return 'B'; if (avg >= 40) return 'C'; return 'F';
@@ -76,26 +103,10 @@ export default function MarkEntryPage() {
       <style jsx global>{`
         @media print {
           @page { size: A4 landscape; margin: 0; }
-          html, body {
-            margin: 0 !important; padding: 0 !important;
-            width: 100% !important; height: 100% !important;
-            background: white !important; color: black !important;
-          }
+          html, body { margin: 0 !important; padding: 0 !important; width: 100% !important; height: 100% !important; background: white !important; color: black !important; }
           .no-print { display: none !important; }
-          .print-wrapper {
-            width: 297mm !important; height: 209mm !important;
-            margin: 0 auto !important;
-            display: flex !important; justify-content: center !important; align-items: center !important;
-            page-break-after: always !important;
-            page-break-inside: avoid !important;
-            overflow: hidden !important;
-          }
-          .print-card {
-            width: 277mm !important; height: 189mm !important;
-            border: 3px solid #0f172a !important; border-radius: 12px !important;
-            padding: 20px !important; box-sizing: border-box !important;
-            display: flex !important; flex-direction: column !important; justify-content: space-between !important;
-          }
+          .print-wrapper { width: 297mm !important; height: 209mm !important; margin: 0 auto !important; display: flex !important; justify-content: center !important; align-items: center !important; page-break-after: always !important; page-break-inside: avoid !important; overflow: hidden !important; }
+          .print-card { width: 277mm !important; height: 189mm !important; border: 3px solid #0f172a !important; border-radius: 12px !important; padding: 20px !important; box-sizing: border-box !important; display: flex !important; flex-direction: column !important; justify-content: space-between !important; }
         }
       `}</style>
 
@@ -104,7 +115,7 @@ export default function MarkEntryPage() {
           
           <div className="max-w-5xl w-full flex justify-between items-center mb-4 no-print">
             <button onClick={() => setPrintData(null)} className="bg-slate-200 text-slate-800 px-4 py-2 rounded-lg font-bold text-sm"><X size={16} /> বন্ধ করুন</button>
-            <button onClick={() => window.print()} className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold text-sm"><Printer size={16} /> প্রিন্ট / Save PDF (A4 Landscape)</button>
+            <button onClick={() => window.print()} className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold text-sm"><Printer size={16} /> প্রিন্ট / Save PDF</button>
           </div>
 
           {printData.map((st) => {
@@ -169,7 +180,7 @@ export default function MarkEntryPage() {
         </div>
       )}
 
-      {/* Main Mark Entry Content stays exactly the same as previously formatted */}
+      {/* Main Mark Entry Content */}
       <div className="no-print space-y-6">
         <div className="flex items-center justify-between mb-8">
           <button onClick={() => router.push('/')} className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-4 py-2.5 rounded-xl text-xs font-bold hover:bg-slate-800 transition">
@@ -183,11 +194,14 @@ export default function MarkEntryPage() {
           <div className="flex flex-col md:flex-row gap-4 justify-between bg-slate-950 p-4 rounded-xl border border-slate-800">
             <div className="flex gap-4 flex-1">
               <select value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} className="bg-slate-900 border border-slate-700 p-3 rounded-xl text-white font-bold">
-                {['Class 1','Class 2','Class 3','Class 4','Class 5','Class 6','Class 7','Class 8','Class 9','Class 10','Class 11','Class 12'].map(cls => (<option key={cls} value={cls}>{cls}</option>))}
+                {classList.map(cls => (<option key={cls} value={cls}>{cls}</option>))}
               </select>
               <input type="text" value={examName} onChange={(e) => setExamName(e.target.value)} className="bg-slate-900 border border-slate-700 p-3 rounded-xl text-white flex-1 font-bold" />
             </div>
             <div className="flex gap-3">
+              <button onClick={handleSaveAllMarks} disabled={saving} className="bg-blue-600 hover:bg-blue-500 px-6 py-3 rounded-xl font-bold text-xs flex items-center gap-2 transition">
+                <Save size={16} /> {saving ? 'সেভ হচ্ছে...' : 'Mark Save All'}
+              </button>
               <button onClick={() => setPrintData(students)} className="bg-emerald-600 hover:bg-emerald-500 px-6 py-3 rounded-xl font-bold text-xs transition">Bulk Marksheets ({selectedClass})</button>
             </div>
           </div>
@@ -196,11 +210,11 @@ export default function MarkEntryPage() {
             <table className="w-full text-left text-xs border-collapse">
               <thead className="bg-slate-800 text-slate-300">
                 <tr>
-                  <th className="p-3">রোল ও নাম</th>
+                  <th className="p-3 border-r border-slate-700">রোল ও নাম</th>
                   {subjects.map((sub, idx) => (
-                    <th key={idx} className="p-3 text-center border-l border-slate-700">{sub.name} <br/><span className="text-[10px] text-amber-400 font-medium">(Oral: {sub.oral} | Theory: {sub.theory})</span></th>
+                    <th key={idx} className="p-3 text-center border-r border-slate-700">{sub.name} <br/><span className="text-[10px] text-amber-400 font-medium">(Oral: {sub.oral} | Theory: {sub.theory})</span></th>
                   ))}
-                  <th className="p-3 text-center border-l border-slate-700">একক মার্কশিট</th>
+                  <th className="p-3 text-center">একক মার্কশিট</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800 bg-slate-900/40">
@@ -208,16 +222,16 @@ export default function MarkEntryPage() {
                   const m = marks[st.id] || {};
                   return (
                     <tr key={st.id} className="hover:bg-slate-800/40 transition">
-                      <td className="p-3 font-medium"><span className="text-blue-400 font-bold">#{st.roll_no}</span> - {st.name}</td>
+                      <td className="p-3 font-medium border-r border-slate-800"><span className="text-blue-400 font-bold">#{st.roll_no}</span> - {st.name}</td>
                       {subjects.map((sub, idx) => (
-                        <td key={idx} className="p-3 text-center border-l border-slate-800">
+                        <td key={idx} className="p-3 text-center border-r border-slate-800">
                           <div className="flex gap-1 justify-center">
-                            <input type="number" placeholder="O" value={m[`${sub.name}_oral`] !== undefined ? m[`${sub.name}_oral`] : ''} onChange={(e) => handleMarkChange(st.id, sub.name, 'oral', e.target.value, sub.oral)} onBlur={() => handleAutoSave(st.id)} className="w-14 bg-slate-950 border border-slate-700 text-center p-1.5 rounded-lg font-bold" />
-                            <input type="number" placeholder="T" value={m[`${sub.name}_theory`] !== undefined ? m[`${sub.name}_theory`] : ''} onChange={(e) => handleMarkChange(st.id, sub.name, 'theory', e.target.value, sub.theory)} onBlur={() => handleAutoSave(st.id)} className="w-14 bg-slate-950 border border-slate-700 text-center p-1.5 rounded-lg font-bold" />
+                            <input type="number" placeholder="O" value={m[`${sub.name}_oral`] !== undefined ? m[`${sub.name}_oral`] : ''} onChange={(e) => handleMarkChange(st.id, sub.name, 'oral', e.target.value, sub.oral)} onBlur={() => handleAutoSave(st.id)} className="w-14 bg-slate-950 border border-slate-700 text-center p-1.5 rounded-lg font-bold focus:ring-2 focus:ring-blue-500 outline-none" />
+                            <input type="number" placeholder="T" value={m[`${sub.name}_theory`] !== undefined ? m[`${sub.name}_theory`] : ''} onChange={(e) => handleMarkChange(st.id, sub.name, 'theory', e.target.value, sub.theory)} onBlur={() => handleAutoSave(st.id)} className="w-14 bg-slate-950 border border-slate-700 text-center p-1.5 rounded-lg font-bold focus:ring-2 focus:ring-blue-500 outline-none" />
                           </div>
                         </td>
                       ))}
-                      <td className="p-3 text-center border-l border-slate-800"><button onClick={() => setPrintData([st])} className="bg-blue-600 px-3 py-1.5 rounded-lg text-xs font-bold">মার্কশিট</button></td>
+                      <td className="p-3 text-center"><button onClick={() => setPrintData([st])} className="bg-blue-600 px-3 py-1.5 rounded-lg text-xs font-bold">মার্কশিট</button></td>
                     </tr>
                   );
                 })}
@@ -228,4 +242,4 @@ export default function MarkEntryPage() {
       </div>
     </div>
   );
-                        }
+            }
