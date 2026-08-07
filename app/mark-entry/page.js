@@ -33,11 +33,11 @@ export default function MarkEntryPage() {
     const { data: schoolData } = await supabase.from('school_settings').select('*').eq('id', 1).single();
     if (schoolData) setSchool(schoolData);
 
-    const { data: stData } = await supabase.from('students').select('student_class');
+    const { data: stData } = await supabase.from('students').select('student_class').eq('status', 'Active');
     if (stData && stData.length > 0) {
       const active = [...new Set(stData.map(s => s.student_class))];
       setActiveClasses(active);
-      setSelectedClass(active[0]); // Auto select first active class
+      setSelectedClass(active[0]); 
     }
   };
 
@@ -49,7 +49,7 @@ export default function MarkEntryPage() {
       setSubjects([{ name: 'Bangla', oral: 20, theory: 80 }, { name: 'English', oral: 20, theory: 80 }]);
     }
 
-    const { data: studentData } = await supabase.from('students').select('*').eq('student_class', selectedClass).order('roll_no', { ascending: true });
+    const { data: studentData } = await supabase.from('students').select('*').eq('student_class', selectedClass).eq('status', 'Active').order('roll_no', { ascending: true });
     setStudents(studentData || []);
 
     const { data: savedMarksData } = await supabase.from('marksheets').select('*').eq('class_name', selectedClass).eq('exam_name', examName);
@@ -126,14 +126,16 @@ export default function MarkEntryPage() {
               <div key={st.id} className="print-wrapper bg-white mb-8 print:mb-0">
                 <div className="print-card bg-white border-4 border-slate-900 p-6 rounded-xl shadow-xl flex flex-col justify-between">
                   <div>
-                    <div className="text-center border-b-2 border-slate-900 pb-2 mb-3">
+                    <div className="text-center border-b-2 border-slate-900 pb-2 mb-3 relative">
+                      {school.logo_url && <img src={school.logo_url} className="absolute left-0 top-0 w-16 h-16 object-contain" alt="Logo" />}
                       <h1 className="text-2xl font-black uppercase tracking-wider text-slate-900">{school.school_name || 'ISLAMIC NATIONAL SCHOOL'}</h1>
                       <p className="text-[11px] font-semibold text-slate-600">{school.address} | Contact: {school.phone}</p>
                       <div className="mt-1 inline-block bg-slate-900 text-white font-bold px-3 py-0.5 rounded text-[11px] uppercase tracking-wide">OFFICIAL ACADEMIC TRANSCRIPT — {examName}</div>
                     </div>
+                    {/* Updated Marksheet Header Info */}
                     <div className="grid grid-cols-3 gap-2 text-[11px] mb-3 bg-slate-100 p-2.5 rounded-lg border border-slate-300">
                       <p><strong>Student Name:</strong> {st.name}</p><p><strong>Roll No:</strong> #{st.roll_no}</p><p><strong>Class:</strong> {st.student_class}</p>
-                      <p><strong>Gender:</strong> {st.gender || 'Male'}</p><p><strong>Blood Group:</strong> {st.blood_group || 'N/A'}</p><p><strong>Phone:</strong> {st.phone || 'N/A'}</p>
+                      <p><strong>Father's Name:</strong> {st.father_name || 'N/A'}</p><p><strong>Date of Birth:</strong> {st.dob || 'N/A'}</p><p><strong>Gender:</strong> {st.gender || 'N/A'}</p>
                     </div>
                     <table className="w-full text-left text-[11px] border-collapse border border-slate-900 mb-3">
                       <thead>
@@ -165,8 +167,10 @@ export default function MarkEntryPage() {
                       <p><strong>Final Grade:</strong> <span className="text-blue-900 font-black text-xs">{calculateGrade(grandTotal / (subjects.length || 1))}</span></p>
                     </div>
                   </div>
-                  <div className="text-center pt-2 border-t border-dashed border-slate-400 mt-2">
-                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">This is a computer-generated document. No signature is required.</p>
+                  <div className="text-center pt-2 border-t border-dashed border-slate-400 mt-2 flex justify-between items-end px-10">
+                    <div className="text-center"><div className="w-32 border-b border-slate-900 mb-1"></div><p className="text-[10px] text-slate-500 font-bold">Class Teacher</p></div>
+                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-2">This is a computer-generated document.</p>
+                    <div className="text-center"><div className="w-32 border-b border-slate-900 mb-1"></div><p className="text-[10px] text-slate-500 font-bold">Principal Signature</p></div>
                   </div>
                 </div>
               </div>
@@ -179,13 +183,12 @@ export default function MarkEntryPage() {
       <div className="no-print space-y-6">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
           <button onClick={() => router.push('/')} className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-4 py-2.5 rounded-xl text-xs font-bold hover:bg-slate-800 transition">
-            <ArrowLeft size={16} /> ড্যাশবোর্ডে ফিরে যান
+            <ArrowLeft size={16} /> Dashboard
           </button>
           {saveStatus && (<div className="flex items-center gap-2 text-emerald-400 font-bold bg-emerald-500/10 px-4 py-2 rounded-xl text-sm animate-pulse"><CheckCircle2 size={18} /> {saveStatus}</div>)}
           <h1 className="text-2xl font-bold text-blue-400 hidden md:block">Class-wise Mark Entry Panel</h1>
         </div>
 
-        {/* Horizontal Class Tabs */}
         <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide">
           {activeClasses.length > 0 ? activeClasses.map(cls => (
             <button 
@@ -208,14 +211,14 @@ export default function MarkEntryPage() {
               </div>
               <div className="flex gap-3">
                 <button onClick={handleSaveAllMarks} disabled={saving} className="bg-blue-600 hover:bg-blue-500 px-6 py-3 rounded-xl font-bold text-xs flex items-center gap-2 transition">
-                  <Save size={16} /> {saving ? 'সেভ হচ্ছে...' : 'Mark Save All'}
+                  <Save size={16} /> {saving ? 'Saving...' : 'Mark Save All'}
                 </button>
                 <button onClick={() => setPrintData(students)} className="bg-emerald-600 hover:bg-emerald-500 px-6 py-3 rounded-xl font-bold text-xs transition">Bulk Marksheets ({selectedClass})</button>
               </div>
             </div>
 
             <div className="overflow-x-auto rounded-xl border border-slate-800">
-              <table className="w-full text-left text-xs border-collapse">
+              <table className="w-full text-left text-xs border-collapse min-w-[800px]">
                 <thead className="bg-slate-800 text-slate-300">
                   <tr>
                     <th className="p-3 border-r border-slate-700">রোল ও নাম</th>
@@ -230,7 +233,7 @@ export default function MarkEntryPage() {
                     const m = marks[st.id] || {};
                     return (
                       <tr key={st.id} className="hover:bg-slate-800/40 transition">
-                        <td className="p-3 font-medium border-r border-slate-800"><span className="text-blue-400 font-bold">#{st.roll_no}</span> - {st.name}</td>
+                        <td className="p-3 font-medium border-r border-slate-800 min-w-[200px]"><span className="text-blue-400 font-bold">#{st.roll_no}</span> - {st.name}</td>
                         {subjects.map((sub, idx) => (
                           <td key={idx} className="p-3 text-center border-r border-slate-800">
                             <div className="flex gap-1 justify-center">
@@ -239,7 +242,7 @@ export default function MarkEntryPage() {
                             </div>
                           </td>
                         ))}
-                        <td className="p-3 text-center"><button onClick={() => setPrintData([st])} className="bg-blue-600 px-3 py-1.5 rounded-lg text-xs font-bold">মার্কশিট</button></td>
+                        <td className="p-3 text-center"><button onClick={() => setPrintData([st])} className="bg-blue-600 px-3 py-1.5 rounded-lg text-xs font-bold text-white hover:bg-blue-500">মার্কশিট</button></td>
                       </tr>
                     );
                   })}
@@ -251,4 +254,4 @@ export default function MarkEntryPage() {
       </div>
     </div>
   );
-                                                    }
+                  }
