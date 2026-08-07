@@ -6,8 +6,8 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Printer, X, Save, CheckCircle2 } from 'lucide-react';
 
 export default function MarkEntryPage() {
-  const [classList, setClassList] = useState(['Class 1','Class 2','Class 3','Class 4','Class 5','Class 6','Class 7','Class 8','Class 9','Class 10','Class 11','Class 12']);
-  const [selectedClass, setSelectedClass] = useState('Class 1');
+  const [activeClasses, setActiveClasses] = useState([]);
+  const [selectedClass, setSelectedClass] = useState('');
   const [examName, setExamName] = useState('Annual Examination 2026');
   const [students, setStudents] = useState([]);
   const [subjects, setSubjects] = useState([]);
@@ -24,18 +24,20 @@ export default function MarkEntryPage() {
   }, []);
 
   useEffect(() => {
-    fetchClassData();
+    if (selectedClass) {
+      fetchClassData();
+    }
   }, [selectedClass, examName]);
 
   const fetchInitialData = async () => {
     const { data: schoolData } = await supabase.from('school_settings').select('*').eq('id', 1).single();
     if (schoolData) setSchool(schoolData);
 
-    const { data: classesData } = await supabase.from('class_configs').select('class_name');
-    if (classesData && classesData.length > 0) {
-      const customClasses = classesData.map(d => d.class_name);
-      setClassList(Array.from(new Set([...customClasses])));
-      setSelectedClass(customClasses[0]); // Auto select first available class
+    const { data: stData } = await supabase.from('students').select('student_class');
+    if (stData && stData.length > 0) {
+      const active = [...new Set(stData.map(s => s.student_class))];
+      setActiveClasses(active);
+      setSelectedClass(active[0]); // Auto select first active class
     }
   };
 
@@ -99,8 +101,9 @@ export default function MarkEntryPage() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-6 md:p-10 font-sans">
       
-      {/* PERFECT A4 LANDSCAPE CENTERED CSS */}
       <style jsx global>{`
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
         @media print {
           @page { size: A4 landscape; margin: 0; }
           html, body { margin: 0 !important; padding: 0 !important; width: 100% !important; height: 100% !important; background: white !important; color: black !important; }
@@ -112,16 +115,13 @@ export default function MarkEntryPage() {
 
       {printData && (
         <div className="fixed inset-0 bg-white text-slate-900 z-50 overflow-y-auto p-4 print:p-0 print:overflow-hidden flex flex-col items-center">
-          
           <div className="max-w-5xl w-full flex justify-between items-center mb-4 no-print">
             <button onClick={() => setPrintData(null)} className="bg-slate-200 text-slate-800 px-4 py-2 rounded-lg font-bold text-sm"><X size={16} /> বন্ধ করুন</button>
             <button onClick={() => window.print()} className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold text-sm"><Printer size={16} /> প্রিন্ট / Save PDF</button>
           </div>
-
           {printData.map((st) => {
             const m = marks[st.id] || {};
             let grandTotal = 0; let maxTotal = subjects.length * 100;
-
             return (
               <div key={st.id} className="print-wrapper bg-white mb-8 print:mb-0">
                 <div className="print-card bg-white border-4 border-slate-900 p-6 rounded-xl shadow-xl flex flex-col justify-between">
@@ -129,16 +129,12 @@ export default function MarkEntryPage() {
                     <div className="text-center border-b-2 border-slate-900 pb-2 mb-3">
                       <h1 className="text-2xl font-black uppercase tracking-wider text-slate-900">{school.school_name || 'ISLAMIC NATIONAL SCHOOL'}</h1>
                       <p className="text-[11px] font-semibold text-slate-600">{school.address} | Contact: {school.phone}</p>
-                      <div className="mt-1 inline-block bg-slate-900 text-white font-bold px-3 py-0.5 rounded text-[11px] uppercase tracking-wide">
-                        OFFICIAL ACADEMIC TRANSCRIPT — {examName}
-                      </div>
+                      <div className="mt-1 inline-block bg-slate-900 text-white font-bold px-3 py-0.5 rounded text-[11px] uppercase tracking-wide">OFFICIAL ACADEMIC TRANSCRIPT — {examName}</div>
                     </div>
-
                     <div className="grid grid-cols-3 gap-2 text-[11px] mb-3 bg-slate-100 p-2.5 rounded-lg border border-slate-300">
                       <p><strong>Student Name:</strong> {st.name}</p><p><strong>Roll No:</strong> #{st.roll_no}</p><p><strong>Class:</strong> {st.student_class}</p>
                       <p><strong>Gender:</strong> {st.gender || 'Male'}</p><p><strong>Blood Group:</strong> {st.blood_group || 'N/A'}</p><p><strong>Phone:</strong> {st.phone || 'N/A'}</p>
                     </div>
-
                     <table className="w-full text-left text-[11px] border-collapse border border-slate-900 mb-3">
                       <thead>
                         <tr className="bg-slate-200 text-slate-900 border-b border-slate-900">
@@ -163,7 +159,6 @@ export default function MarkEntryPage() {
                         })}
                       </tbody>
                     </table>
-
                     <div className="flex justify-between items-center bg-slate-100 p-2.5 rounded-lg border border-slate-300 text-[11px]">
                       <p><strong>Grand Total Marks:</strong> {grandTotal} / {maxTotal}</p>
                       <p><strong>Percentage:</strong> {(grandTotal / (subjects.length || 1)).toFixed(1)}%</p>
@@ -180,66 +175,80 @@ export default function MarkEntryPage() {
         </div>
       )}
 
-      {/* Main Mark Entry Content */}
+      {/* Main Content */}
       <div className="no-print space-y-6">
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
           <button onClick={() => router.push('/')} className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-4 py-2.5 rounded-xl text-xs font-bold hover:bg-slate-800 transition">
             <ArrowLeft size={16} /> ড্যাশবোর্ডে ফিরে যান
           </button>
           {saveStatus && (<div className="flex items-center gap-2 text-emerald-400 font-bold bg-emerald-500/10 px-4 py-2 rounded-xl text-sm animate-pulse"><CheckCircle2 size={18} /> {saveStatus}</div>)}
-          <h1 className="text-2xl font-bold text-blue-400 hidden md:block">Class-wise Mark Entry Auto-Save Panel</h1>
+          <h1 className="text-2xl font-bold text-blue-400 hidden md:block">Class-wise Mark Entry Panel</h1>
         </div>
 
-        <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-2xl space-y-6 shadow-2xl">
-          <div className="flex flex-col md:flex-row gap-4 justify-between bg-slate-950 p-4 rounded-xl border border-slate-800">
-            <div className="flex gap-4 flex-1">
-              <select value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} className="bg-slate-900 border border-slate-700 p-3 rounded-xl text-white font-bold">
-                {classList.map(cls => (<option key={cls} value={cls}>{cls}</option>))}
-              </select>
-              <input type="text" value={examName} onChange={(e) => setExamName(e.target.value)} className="bg-slate-900 border border-slate-700 p-3 rounded-xl text-white flex-1 font-bold" />
-            </div>
-            <div className="flex gap-3">
-              <button onClick={handleSaveAllMarks} disabled={saving} className="bg-blue-600 hover:bg-blue-500 px-6 py-3 rounded-xl font-bold text-xs flex items-center gap-2 transition">
-                <Save size={16} /> {saving ? 'সেভ হচ্ছে...' : 'Mark Save All'}
-              </button>
-              <button onClick={() => setPrintData(students)} className="bg-emerald-600 hover:bg-emerald-500 px-6 py-3 rounded-xl font-bold text-xs transition">Bulk Marksheets ({selectedClass})</button>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto rounded-xl border border-slate-800">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead className="bg-slate-800 text-slate-300">
-                <tr>
-                  <th className="p-3 border-r border-slate-700">রোল ও নাম</th>
-                  {subjects.map((sub, idx) => (
-                    <th key={idx} className="p-3 text-center border-r border-slate-700">{sub.name} <br/><span className="text-[10px] text-amber-400 font-medium">(Oral: {sub.oral} | Theory: {sub.theory})</span></th>
-                  ))}
-                  <th className="p-3 text-center">একক মার্কশিট</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800 bg-slate-900/40">
-                {students.map((st) => {
-                  const m = marks[st.id] || {};
-                  return (
-                    <tr key={st.id} className="hover:bg-slate-800/40 transition">
-                      <td className="p-3 font-medium border-r border-slate-800"><span className="text-blue-400 font-bold">#{st.roll_no}</span> - {st.name}</td>
-                      {subjects.map((sub, idx) => (
-                        <td key={idx} className="p-3 text-center border-r border-slate-800">
-                          <div className="flex gap-1 justify-center">
-                            <input type="number" placeholder="O" value={m[`${sub.name}_oral`] !== undefined ? m[`${sub.name}_oral`] : ''} onChange={(e) => handleMarkChange(st.id, sub.name, 'oral', e.target.value, sub.oral)} onBlur={() => handleAutoSave(st.id)} className="w-14 bg-slate-950 border border-slate-700 text-center p-1.5 rounded-lg font-bold focus:ring-2 focus:ring-blue-500 outline-none" />
-                            <input type="number" placeholder="T" value={m[`${sub.name}_theory`] !== undefined ? m[`${sub.name}_theory`] : ''} onChange={(e) => handleMarkChange(st.id, sub.name, 'theory', e.target.value, sub.theory)} onBlur={() => handleAutoSave(st.id)} className="w-14 bg-slate-950 border border-slate-700 text-center p-1.5 rounded-lg font-bold focus:ring-2 focus:ring-blue-500 outline-none" />
-                          </div>
-                        </td>
-                      ))}
-                      <td className="p-3 text-center"><button onClick={() => setPrintData([st])} className="bg-blue-600 px-3 py-1.5 rounded-lg text-xs font-bold">মার্কশিট</button></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+        {/* Horizontal Class Tabs */}
+        <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide">
+          {activeClasses.length > 0 ? activeClasses.map(cls => (
+            <button 
+              key={cls} 
+              onClick={() => setSelectedClass(cls)}
+              className={`px-5 py-2.5 rounded-xl font-bold text-xs whitespace-nowrap transition-all duration-200 ${selectedClass === cls ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'bg-slate-900 text-slate-400 border border-slate-800 hover:bg-slate-800'}`}
+            >
+              {cls}
+            </button>
+          )) : (
+            <div className="text-sm text-slate-500 font-bold px-4">কোনো ক্লাসে স্টুডেন্ট নেই!</div>
+          )}
         </div>
+
+        {selectedClass && (
+          <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-2xl space-y-6 shadow-2xl">
+            <div className="flex flex-col md:flex-row gap-4 justify-between bg-slate-950 p-4 rounded-xl border border-slate-800">
+              <div className="flex gap-4 flex-1">
+                <input type="text" value={examName} onChange={(e) => setExamName(e.target.value)} className="bg-slate-900 border border-slate-700 p-3 rounded-xl text-white flex-1 font-bold outline-none focus:border-blue-500" />
+              </div>
+              <div className="flex gap-3">
+                <button onClick={handleSaveAllMarks} disabled={saving} className="bg-blue-600 hover:bg-blue-500 px-6 py-3 rounded-xl font-bold text-xs flex items-center gap-2 transition">
+                  <Save size={16} /> {saving ? 'সেভ হচ্ছে...' : 'Mark Save All'}
+                </button>
+                <button onClick={() => setPrintData(students)} className="bg-emerald-600 hover:bg-emerald-500 px-6 py-3 rounded-xl font-bold text-xs transition">Bulk Marksheets ({selectedClass})</button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto rounded-xl border border-slate-800">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-slate-800 text-slate-300">
+                  <tr>
+                    <th className="p-3 border-r border-slate-700">রোল ও নাম</th>
+                    {subjects.map((sub, idx) => (
+                      <th key={idx} className="p-3 text-center border-r border-slate-700">{sub.name} <br/><span className="text-[10px] text-amber-400 font-medium">(Oral: {sub.oral} | Theory: {sub.theory})</span></th>
+                    ))}
+                    <th className="p-3 text-center">একক মার্কশিট</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800 bg-slate-900/40">
+                  {students.map((st) => {
+                    const m = marks[st.id] || {};
+                    return (
+                      <tr key={st.id} className="hover:bg-slate-800/40 transition">
+                        <td className="p-3 font-medium border-r border-slate-800"><span className="text-blue-400 font-bold">#{st.roll_no}</span> - {st.name}</td>
+                        {subjects.map((sub, idx) => (
+                          <td key={idx} className="p-3 text-center border-r border-slate-800">
+                            <div className="flex gap-1 justify-center">
+                              <input type="number" placeholder="O" value={m[`${sub.name}_oral`] !== undefined ? m[`${sub.name}_oral`] : ''} onChange={(e) => handleMarkChange(st.id, sub.name, 'oral', e.target.value, sub.oral)} onBlur={() => handleAutoSave(st.id)} className="w-14 bg-slate-950 border border-slate-700 text-center p-1.5 rounded-lg font-bold focus:ring-2 focus:ring-blue-500 outline-none" />
+                              <input type="number" placeholder="T" value={m[`${sub.name}_theory`] !== undefined ? m[`${sub.name}_theory`] : ''} onChange={(e) => handleMarkChange(st.id, sub.name, 'theory', e.target.value, sub.theory)} onBlur={() => handleAutoSave(st.id)} className="w-14 bg-slate-950 border border-slate-700 text-center p-1.5 rounded-lg font-bold focus:ring-2 focus:ring-blue-500 outline-none" />
+                            </div>
+                          </td>
+                        ))}
+                        <td className="p-3 text-center"><button onClick={() => setPrintData([st])} className="bg-blue-600 px-3 py-1.5 rounded-lg text-xs font-bold">মার্কশিট</button></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
-            }
+}                                                    }
