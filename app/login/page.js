@@ -1,117 +1,281 @@
 'use client';
 
-import { useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabase'; // আপনার supabase ফাইলের সঠিক পাথ দিন
 import { useRouter } from 'next/navigation';
-import { Loader2, School, User, Lock, Calendar } from 'lucide-react';
+import { School, User, Lock, Phone, Mail, Loader2, ArrowRight, ShieldCheck, GraduationCap, Briefcase } from 'lucide-react';
 
 export default function Login() {
-  const [loginType, setLoginType] = useState('admin'); // 'admin' or 'student'
-  const [email, setEmail] = useState('');
+  const router = useRouter();
+  
+  // Login Tabs: 'admin', 'teacher', 'student'
+  const [loginType, setLoginType] = useState('teacher'); 
+  
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  // Form States
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  
+  const [email, setEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  
   const [uniqueId, setUniqueId] = useState('');
   const [dob, setDob] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  
-  const router = useRouter();
 
-  const handleAdminLogin = async (e) => {
+  // Check if someone is already logged in
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const localTeacher = localStorage.getItem('teacher_session');
+      const localStudent = localStorage.getItem('student_session');
+      
+      if (session || localTeacher || localStudent) {
+        router.push('/'); // অথবা আপনার ড্যাশবোর্ডের লিংকে রিডাইরেক্ট করুন (যেমন: '/dashboard')
+      }
+    };
+    checkSession();
+  }, [router]);
+
+  // Handle Teacher Login
+  const handleTeacherLogin = async (e) => {
     e.preventDefault();
-    setLoading(true); setError('');
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) setError(error.message);
-    else router.push('/');
-    setLoading(false);
+    setIsLoading(true); setErrorMsg('');
+
+    const { data, error } = await supabase
+      .from('staff')
+      .select('*')
+      .eq('phone', phone)
+      .eq('password', password)
+      .single();
+
+    if (error || !data) {
+      setErrorMsg('Invalid Phone Number or Password!');
+      setIsLoading(false);
+      return;
+    }
+
+    if (data.status !== 'Active') {
+      setErrorMsg('Your account is inactive. Contact Admin.');
+      setIsLoading(false);
+      return;
+    }
+
+    // Save session and redirect
+    localStorage.setItem('teacher_session', JSON.stringify(data));
+    router.push('/'); 
   };
 
+  // Handle Admin Login
+  const handleAdminLogin = async (e) => {
+    e.preventDefault();
+    setIsLoading(true); setErrorMsg('');
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email,
+      password: adminPassword,
+    });
+
+    if (error) {
+      setErrorMsg('Invalid Admin Email or Password!');
+      setIsLoading(false);
+      return;
+    }
+
+    router.push('/');
+  };
+
+  // Handle Student Login
   const handleStudentLogin = async (e) => {
     e.preventDefault();
-    setLoading(true); setError('');
-    
-    // Check student in database
+    setIsLoading(true); setErrorMsg('');
+
     const { data, error } = await supabase
       .from('students')
       .select('*')
-      .eq('unique_id', parseInt(uniqueId))
+      .eq('unique_id', uniqueId)
       .eq('dob', dob)
       .single();
 
     if (error || !data) {
-      setError('ভুল ইউনিক আইডি বা জন্মতারিখ!');
-    } else {
-      // Save student session in local storage
-      localStorage.setItem('student_session', JSON.stringify(data));
-      router.push('/');
+      setErrorMsg('Invalid Unique ID or Date of Birth!');
+      setIsLoading(false);
+      return;
     }
-    setLoading(false);
+
+    if (data.status !== 'Active') {
+      setErrorMsg('Your account is no longer active.');
+      setIsLoading(false);
+      return;
+    }
+
+    // Save session and redirect
+    localStorage.setItem('student_session', JSON.stringify(data));
+    router.push('/');
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-400 via-purple-400 to-cyan-400 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row max-w-4xl w-full min-h-[500px]">
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 font-sans text-slate-200">
+      
+      {/* Background Decor */}
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl"></div>
+      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-emerald-600/20 rounded-full blur-3xl"></div>
+
+      <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 p-8 md:p-10 rounded-3xl shadow-2xl w-full max-w-md relative z-10">
         
-        {/* Left Side - Form */}
-        <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-center">
-          <div className="flex justify-center mb-6">
-            <div className="bg-gradient-to-tr from-blue-600 to-indigo-500 p-3 rounded-2xl shadow-lg">
-              <School className="text-white" size={32} />
-            </div>
+        {/* Logo & Header */}
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-2xl mx-auto flex items-center justify-center shadow-lg shadow-blue-500/30 mb-4">
+            <School size={32} className="text-white" />
           </div>
-          <h2 className="text-3xl font-black text-slate-800 text-center mb-8">
-            {loginType === 'admin' ? 'Admin Sign In' : 'Student Sign In'}
-          </h2>
-
-          {error && <p className="text-rose-500 text-sm font-bold text-center mb-4 bg-rose-50 p-2 rounded-lg">{error}</p>}
-
-          {loginType === 'admin' ? (
-            <form onSubmit={handleAdminLogin} className="space-y-4">
-              <div className="relative">
-                <User className="absolute left-3 top-3.5 text-slate-400" size={18} />
-                <input type="email" placeholder="Admin Email" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-slate-50 border border-slate-200 pl-10 pr-4 py-3 rounded-xl text-slate-800 focus:outline-none focus:border-blue-500 font-medium" required />
-              </div>
-              <div className="relative">
-                <Lock className="absolute left-3 top-3.5 text-slate-400" size={18} />
-                <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-200 pl-10 pr-4 py-3 rounded-xl text-slate-800 focus:outline-none focus:border-blue-500 font-medium" required />
-              </div>
-              <button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-bold py-3.5 rounded-xl hover:shadow-lg hover:shadow-blue-500/30 transition flex justify-center mt-2">
-                {loading ? <Loader2 className="animate-spin" size={20} /> : 'SIGN IN'}
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handleStudentLogin} className="space-y-4">
-              <div className="relative">
-                <User className="absolute left-3 top-3.5 text-slate-400" size={18} />
-                <input type="number" placeholder="5-Digit Unique ID (e.g. 99999)" value={uniqueId} onChange={e => setUniqueId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 pl-10 pr-4 py-3 rounded-xl text-slate-800 focus:outline-none focus:border-blue-500 font-medium" required />
-              </div>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-3.5 text-slate-400" size={18} />
-                <input type="date" placeholder="Date of Birth" value={dob} onChange={e => setDob(e.target.value)} className="w-full bg-slate-50 border border-slate-200 pl-10 pr-4 py-3 rounded-xl text-slate-800 focus:outline-none focus:border-blue-500 font-medium" required />
-              </div>
-              <button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-bold py-3.5 rounded-xl hover:shadow-lg hover:shadow-blue-500/30 transition flex justify-center mt-2">
-                {loading ? <Loader2 className="animate-spin" size={20} /> : 'SIGN IN'}
-              </button>
-            </form>
-          )}
+          <h1 className="text-2xl font-black text-white">EduAdmin Portal</h1>
+          <p className="text-sm text-slate-400 mt-1">Please login to continue</p>
         </div>
 
-        {/* Right Side - Toggle Panel */}
-        <div className="w-full md:w-1/2 bg-gradient-to-br from-cyan-400 to-blue-500 text-white p-8 md:p-12 flex flex-col justify-center items-center text-center">
-          <h2 className="text-3xl md:text-4xl font-black mb-4">Hello, {loginType === 'admin' ? 'Student!' : 'Admin!'}</h2>
-          <p className="text-sm md:text-base text-blue-50 mb-8 max-w-xs">
-            {loginType === 'admin' 
-              ? 'Are you a student? Enter your personal details and view your dashboard.' 
-              : 'Are you an administrator? Login here to manage the school system.'}
-          </p>
+        {/* Login Type Selection Tabs */}
+        <div className="flex bg-slate-950 p-1.5 rounded-2xl mb-8 border border-slate-800">
           <button 
-            onClick={() => { setLoginType(loginType === 'admin' ? 'student' : 'admin'); setError(''); }} 
-            className="border-2 border-white text-white font-bold py-3 px-10 rounded-full hover:bg-white hover:text-blue-500 transition shadow-lg"
-          >
-            {loginType === 'admin' ? 'STUDENT LOGIN' : 'ADMIN LOGIN'}
+            onClick={() => {setLoginType('teacher'); setErrorMsg('');}} 
+            className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 ${loginType === 'teacher' ? 'bg-purple-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>
+            <Briefcase size={16}/> Teacher
+          </button>
+          <button 
+            onClick={() => {setLoginType('student'); setErrorMsg('');}} 
+            className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 ${loginType === 'student' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>
+            <GraduationCap size={16}/> Student
+          </button>
+          <button 
+            onClick={() => {setLoginType('admin'); setErrorMsg('');}} 
+            className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 ${loginType === 'admin' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>
+            <ShieldCheck size={16}/> Admin
           </button>
         </div>
+
+        {/* Error Message */}
+        {errorMsg && (
+          <div className="bg-rose-500/10 border border-rose-500/50 text-rose-400 p-3 rounded-xl text-sm font-bold text-center mb-6 flex items-center justify-center gap-2 animate-bounce-in">
+            <AlertCircle size={16} /> {errorMsg}
+          </div>
+        )}
+
+        {/* =======================================
+            TEACHER LOGIN FORM
+        ======================================= */}
+        {loginType === 'teacher' && (
+          <form onSubmit={handleTeacherLogin} className="space-y-5 animate-fade-in">
+            <div>
+              <label className="text-xs font-bold text-slate-400 block mb-2 uppercase tracking-wider">Registered Mobile No</label>
+              <div className="relative">
+                <Phone className="absolute left-4 top-3.5 text-slate-500" size={18} />
+                <input 
+                  type="text" 
+                  placeholder="Enter your phone number" 
+                  value={phone} 
+                  onChange={(e) => setPhone(e.target.value)} 
+                  className="w-full bg-slate-950 border border-slate-800 pl-12 pr-4 py-3 rounded-xl text-white outline-none focus:border-purple-500 transition" 
+                  required 
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-400 block mb-2 uppercase tracking-wider">Assigned Password</label>
+              <div className="relative">
+                <Lock className="absolute left-4 top-3.5 text-slate-500" size={18} />
+                <input 
+                  type="password" 
+                  placeholder="Enter password" 
+                  value={password} 
+                  onChange={(e) => setPassword(e.target.value)} 
+                  className="w-full bg-slate-950 border border-slate-800 pl-12 pr-4 py-3 rounded-xl text-white outline-none focus:border-purple-500 transition" 
+                  required 
+                />
+              </div>
+            </div>
+            <button type="submit" disabled={isLoading} className="w-full bg-purple-600 hover:bg-purple-500 text-white py-3.5 rounded-xl font-black transition shadow-lg shadow-purple-500/20 flex justify-center items-center gap-2 mt-2">
+              {isLoading ? <Loader2 className="animate-spin" size={20}/> : 'Access Teacher Panel'} <ArrowRight size={18}/>
+            </button>
+          </form>
+        )}
+
+        {/* =======================================
+            STUDENT LOGIN FORM
+        ======================================= */}
+        {loginType === 'student' && (
+          <form onSubmit={handleStudentLogin} className="space-y-5 animate-fade-in">
+            <div>
+              <label className="text-xs font-bold text-slate-400 block mb-2 uppercase tracking-wider">Student Unique ID</label>
+              <div className="relative">
+                <User className="absolute left-4 top-3.5 text-slate-500" size={18} />
+                <input 
+                  type="text" 
+                  placeholder="e.g. 99999" 
+                  value={uniqueId} 
+                  onChange={(e) => setUniqueId(e.target.value)} 
+                  className="w-full bg-slate-950 border border-slate-800 pl-12 pr-4 py-3 rounded-xl text-white outline-none focus:border-blue-500 transition" 
+                  required 
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-400 block mb-2 uppercase tracking-wider">Date of Birth</label>
+              <div className="relative">
+                <Calendar className="absolute left-4 top-3.5 text-slate-500" size={18} />
+                <input 
+                  type="date" 
+                  value={dob} 
+                  onChange={(e) => setDob(e.target.value)} 
+                  className="w-full bg-slate-950 border border-slate-800 pl-12 pr-4 py-3 rounded-xl text-white outline-none focus:border-blue-500 transition" 
+                  required 
+                />
+              </div>
+            </div>
+            <button type="submit" disabled={isLoading} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-3.5 rounded-xl font-black transition shadow-lg shadow-blue-500/20 flex justify-center items-center gap-2 mt-2">
+              {isLoading ? <Loader2 className="animate-spin" size={20}/> : 'Access Student Portal'} <ArrowRight size={18}/>
+            </button>
+          </form>
+        )}
+
+        {/* =======================================
+            ADMIN LOGIN FORM
+        ======================================= */}
+        {loginType === 'admin' && (
+          <form onSubmit={handleAdminLogin} className="space-y-5 animate-fade-in">
+            <div>
+              <label className="text-xs font-bold text-slate-400 block mb-2 uppercase tracking-wider">Admin Email</label>
+              <div className="relative">
+                <Mail className="absolute left-4 top-3.5 text-slate-500" size={18} />
+                <input 
+                  type="email" 
+                  placeholder="admin@school.com" 
+                  value={email} 
+                  onChange={(e) => setEmail(e.target.value)} 
+                  className="w-full bg-slate-950 border border-slate-800 pl-12 pr-4 py-3 rounded-xl text-white outline-none focus:border-emerald-500 transition" 
+                  required 
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-400 block mb-2 uppercase tracking-wider">Master Password</label>
+              <div className="relative">
+                <Lock className="absolute left-4 top-3.5 text-slate-500" size={18} />
+                <input 
+                  type="password" 
+                  placeholder="••••••••" 
+                  value={adminPassword} 
+                  onChange={(e) => setAdminPassword(e.target.value)} 
+                  className="w-full bg-slate-950 border border-slate-800 pl-12 pr-4 py-3 rounded-xl text-white outline-none focus:border-emerald-500 transition" 
+                  required 
+                />
+              </div>
+            </div>
+            <button type="submit" disabled={isLoading} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-3.5 rounded-xl font-black transition shadow-lg shadow-emerald-500/20 flex justify-center items-center gap-2 mt-2">
+              {isLoading ? <Loader2 className="animate-spin" size={20}/> : 'Login as Admin'} <ArrowRight size={18}/>
+            </button>
+          </form>
+        )}
 
       </div>
     </div>
   );
-          }
+}
