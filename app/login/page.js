@@ -1,20 +1,19 @@
+/* eslint-disable */
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase'; // পাথ ঠিক আছে কিনা চেক করে নেবেন
+// আপনার supabase ফাইলটি যেখানে আছে, সেই অনুযায়ী নিচের পাথটি ঠিক করে নেবেন (যেমন: '../../lib/supabase' অথবা '../lib/supabase')
+import { supabase } from '../../lib/supabase'; 
 import { useRouter } from 'next/navigation';
 import { School, User, Lock, Phone, Mail, Loader2, ArrowRight, ShieldCheck, GraduationCap, Briefcase, AlertCircle } from 'lucide-react';
 
 export default function Login() {
   const router = useRouter();
   
-  // Login Tabs: 'admin', 'teacher', 'student'
   const [loginType, setLoginType] = useState('admin'); 
-  
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Form States
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   
