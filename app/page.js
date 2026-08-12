@@ -522,12 +522,105 @@ export default function Dashboard() {
 
   if (!session && !studentSession && !teacherSession) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white"><Loader2 className="animate-spin mr-2"/> Loading...</div>;
 
-  // STUDENT PORTAL VIEW (FIXED)
+  // ==========================================
+  // STUDENT PORTAL VIEW (FIXED OPTIONAL CHAINING & FALLBACKS)
+  // ==========================================
   if (studentSession) {
-    const config = allClassConfigs[studentSession.student_class] || {};
-    const aMonthly = (studentSession.agreed_monthly_fee !== null && studentSession.agreed_monthly_fee !== "") ? Number(studentSession.agreed_monthly_fee) : Number(config.tuition_fee || 0);
-    const aAdmission = (studentSession.agreed_admission_fee !== null && studentSession.agreed_admission_fee !== "") ? Number(studentSession.agreed_admission_fee) : Number(config.admission_fee || 0);
+    const config = allClassConfigs[studentSession?.student_class] || {};
+    const aMonthly = (studentSession?.agreed_monthly_fee !== null && studentSession?.agreed_monthly_fee !== undefined && studentSession?.agreed_monthly_fee !== "") ? Number(studentSession.agreed_monthly_fee) : Number(config?.tuition_fee || 0);
+    const aAdmission = (studentSession?.agreed_admission_fee !== null && studentSession?.agreed_admission_fee !== undefined && studentSession?.agreed_admission_fee !== "") ? Number(studentSession.agreed_admission_fee) : Number(config?.admission_fee || 0);
     
+    // SAFE FALLBACKS
+    const safeTxData = Array.isArray(studentPortalData?.tx) ? studentPortalData.tx : [];
+    const safeAttendanceData = Array.isArray(studentPortalData?.attendance) ? studentPortalData.attendance : [];
+    const safeMarksData = Array.isArray(studentPortalData?.marks) ? studentPortalData.marks : [];
+
+    const totalPaid = safeTxData.reduce((acc, curr) => acc + getPaidAmount(curr), 0);
+    const currentMonth = new Date().getMonth() + 1; 
+    const activeMonths = Math.max(1, (currentMonth - (config?.start_month || 1)) + 1);
+    
+    const expectedTuition = aMonthly * activeMonths;
+    const tuitionPaid = safeTxData.filter(t => t?.fee_type === 'Tuition Fee').reduce((s, t) => s + getPaidAmount(t), 0);
+    const admissionPaid = safeTxData.filter(t => t?.fee_type === 'Admission Fee').reduce((s, t) => s + getPaidAmount(t), 0);
+    
+    const totalDue = Math.max(0, expectedTuition - tuitionPaid) + Math.max(0, aAdmission - admissionPaid);
+
+    const totalClassDays = safeAttendanceData.filter(a => a?.day_type === 'Class Day').length;
+    const presentDays = safeAttendanceData.filter(a => a?.day_type === 'Class Day' && a?.status === 'Present').length;
+    const absentDays = safeAttendanceData.filter(a => a?.day_type === 'Class Day' && a?.status === 'Absent').length;
+    const holidayCount = safeAttendanceData.filter(a => a?.day_type !== 'Class Day').length;
+    const attPercentage = totalClassDays > 0 ? Math.round((presentDays / totalClassDays) * 100) : 0;
+
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 font-sans p-6 md:p-10">
+        <div className="max-w-6xl mx-auto space-y-8">
+          <div className="flex justify-between items-center bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-xl">
+            <div className="flex items-center gap-4">
+              {school?.logo_url && <img src={school.logo_url} alt="Logo" className="w-14 h-14 rounded-full bg-white object-contain p-1 border-2 border-blue-500" />}
+              <div><h1 className="text-xl md:text-2xl font-black text-white">{school?.school_name || 'My School Portal'}</h1><p className="text-xs text-blue-400 font-bold">Student Dashboard</p></div>
+            </div>
+            <button onClick={handleLogout} className="bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition"><LogOut size={16}/> Logout</button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-gradient-to-br from-blue-900 to-indigo-900 p-6 rounded-3xl shadow-xl border border-blue-500/30 flex items-center gap-5">
+              <img src={studentSession?.photo_url || 'https://via.placeholder.com/150'} className="w-20 h-20 rounded-full border-4 border-white/20 object-cover" />
+              <div><h2 className="text-xl font-black text-white">{studentSession?.name}</h2><p className="text-sm text-blue-200 mt-1">{studentSession?.student_class} | Roll: #{studentSession?.roll_no}</p><p className="text-xs font-bold bg-black/20 inline-block px-3 py-1 rounded-full mt-2">ID: {studentSession?.unique_id}</p></div>
+            </div>
+            <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl flex flex-col justify-center"><p className="text-xs text-slate-400 uppercase tracking-widest font-bold">Total Fees Paid</p><h3 className="text-4xl font-black text-emerald-400 mt-2">₹{totalPaid}</h3></div>
+            <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl flex flex-col justify-center"><p className="text-xs text-slate-400 uppercase tracking-widest font-bold">Current Dues (Arrears)</p><h3 className="text-4xl font-black text-rose-400 mt-2">₹{totalDue}</h3></div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-3xl shadow-xl">
+              <h3 className="text-lg font-bold text-emerald-400 mb-6 flex items-center gap-2"><CalendarCheck/> Attendance Report</h3>
+              <div className="flex items-center justify-between mb-6">
+                <div><p className="text-sm text-slate-400">Total Class Days</p><p className="text-3xl font-black text-white">{totalClassDays}</p></div>
+                <div className="text-right"><p className="text-sm text-slate-400">Attendance Rate</p><p className={`text-3xl font-black ${attPercentage >= 75 ? 'text-emerald-400' : 'text-rose-400'}`}>{attPercentage}%</p></div>
+              </div>
+              <div className="grid grid-cols-3 gap-4 text-center text-sm">
+                 <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-2xl"><p className="text-emerald-400 font-bold text-2xl">{presentDays}</p><p className="text-xs text-slate-400 mt-1">Present</p></div>
+                 <div className="bg-rose-500/10 border border-rose-500/20 p-4 rounded-2xl"><p className="text-rose-400 font-bold text-2xl">{absentDays}</p><p className="text-xs text-slate-400 mt-1">Absent</p></div>
+                 <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-2xl"><p className="text-blue-400 font-bold text-2xl">{holidayCount}</p><p className="text-xs text-slate-400 mt-1">Holidays/Events</p></div>
+              </div>
+            </div>
+            
+            <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-3xl shadow-xl">
+              <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2"><FileText className="text-amber-400"/> Academic Results</h3>
+              {safeMarksData.length > 0 ? (
+                <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2">
+                  {safeMarksData.map((mRecord, i) => (
+                    <div key={i} className="bg-slate-950 border border-slate-800 p-4 rounded-2xl">
+                      <p className="text-sm font-bold text-amber-400 mb-3">{mRecord?.exam_name}</p>
+                      <div className="space-y-2">
+                        {mRecord?.marks_data && Object.keys(mRecord.marks_data).filter(k => k.includes('_theory')).map(key => {
+                          const subName = key.split('_')[0];
+                          const theory = mRecord.marks_data[`${subName}_theory`] || 0;
+                          const oral = mRecord.marks_data[`${subName}_oral`] || 0;
+                          const total = theory + oral;
+                          return (
+                            <div key={subName} className="flex justify-between items-center text-xs border-b border-slate-800 pb-2">
+                              <span className="text-slate-300 font-medium">{subName}</span>
+                              <span className="font-bold text-white bg-slate-800 px-3 py-1 rounded-lg">Score: {total}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center p-10 border border-dashed border-slate-800 rounded-2xl text-slate-500">
+                  <File size={32} className="mx-auto mb-2 opacity-30"/>
+                  <p className="text-xs font-semibold">No exam results published yet.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
     // SAFE FALLBACKS
     const safeTxData = studentPortalData?.tx || [];
     const safeAttendanceData = studentPortalData?.attendance || [];
