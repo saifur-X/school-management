@@ -2,10 +2,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-// আপনার supabase ফাইলটি যেখানে আছে, সেই অনুযায়ী নিচের পাথটি ঠিক করে নেবেন (যেমন: '../../lib/supabase' অথবা '../lib/supabase')
+// আপনার supabase ফাইলটি যেখানে আছে, সেই অনুযায়ী নিচের পাথটি ঠিক করে নেবেন
 import { supabase } from '../../lib/supabase'; 
 import { useRouter } from 'next/navigation';
-import { School, User, Lock, Phone, Mail, Loader2, ArrowRight, ShieldCheck, GraduationCap, Briefcase, AlertCircle } from 'lucide-react';
+// ফিক্স: এখানে 'Calendar' আইকনটি যুক্ত করা হয়েছে
+import { School, User, Lock, Phone, Mail, Loader2, ShieldCheck, GraduationCap, Briefcase, AlertCircle, Calendar } from 'lucide-react';
 
 export default function Login() {
   const router = useRouter();
