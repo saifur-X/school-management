@@ -156,10 +156,10 @@ export default function Login() {
         };
       default:
         return {
-          accent: 'text-blue-400',
-          border: 'focus:border-blue-500',
-          badge: 'bg-blue-500/10 text-blue-300 border-blue-500/30',
-          button: 'bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 shadow-blue-600/30'
+          accent: 'text-green-400',
+          border: 'focus:border-green-500',
+          badge: 'bg-blue-500/10 text-green-300 border-blue-500/30',
+          button: 'bg-gradient-to-r from-green-600 via-indigo-600 to-violet-600 hover:from-green-500 hover:to-violet-500 shadow-green-600/30'
         };
     }
   };
